@@ -1,0 +1,9 @@
+// Copy this file to Signing.xcconfig (it is git-ignored) and fill it in.
+
+// Your team ID: Xcode → Settings → Accounts → your Apple ID → the team's ID.
+// A free Apple ID works; it shows up as "(Personal Team)".
+DEVELOPMENT_TEAM = ABCDE12345
+
+// Something unique to you, in reverse-domain style. The app's ID becomes
+// <prefix>.tme, and Apple requires it to be unused by anyone else.
+BUNDLE_ID_PREFIX = com.yourname

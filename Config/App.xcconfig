@@ -1,0 +1,6 @@
+// Signing for your own Apple ID.
+// Copy Signing.example.xcconfig to Signing.xcconfig and fill in your values.
+BUNDLE_ID_PREFIX = com.example
+DEVELOPMENT_TEAM =
+
+#include? "Signing.xcconfig"

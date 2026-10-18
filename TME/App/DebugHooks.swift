@@ -1,0 +1,74 @@
+#if DEBUG
+import Foundation
+import SwiftData
+
+/// Launch arguments for tests and screenshots:
+///   -seedDemo              fill the store with a month of sample entries
+///   -simulateSMS <base64>  handle a bank SMS as the automation would
+///   -tab dashboard         open on a tab (read by AppRouter)
+@MainActor
+enum DebugHooks {
+    static func run(in context: ModelContext) {
+        if LaunchOptions.arguments.contains("-seedDemo") {
+            DemoData.insert(into: context)
+        }
+        // Base64, because UI-test launch arguments lose the line breaks bank SMS rely on.
+        if let encoded = LaunchOptions.value(after: "-simulateSMS"),
+           let data = Data(base64Encoded: encoded),
+           let message = String(data: data, encoding: .utf8) {
+            if case .needsCategory(let id) = try? SMSIngest.handle(message, in: context) {
+                Task { await TagPrompt.ask(entryID: id, in: context) }
+            }
+        }
+    }
+}
+
+@MainActor
+enum DemoData {
+    static func insert(into context: ModelContext) {
+        let categories = (try? context.fetch(FetchDescriptor<LedgerCategory>())) ?? []
+        func category(_ name: String) -> LedgerCategory? { categories.first { $0.name == name } }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        func day(_ daysAgo: Int, _ hour: Int) -> Date {
+            let date = calendar.date(byAdding: .day, value: -daysAgo, to: today) ?? today
+            return calendar.date(bySettingHour: hour, minute: 15, second: 0, of: date) ?? date
+        }
+
+        let samples: [(Int, Int, Int, Flow, String?, String, String)] = [
+            (0, 13, 245_00, .expense, "SWIGGY", "Food", ""),
+            (0, 9, 60_00, .expense, nil, "Food", "Chai and samosa"),
+            (1, 20, 1_240_00, .expense, "BIGBASKET", "Groceries", ""),
+            (1, 9, 180_00, .expense, "UBER", "Transport", ""),
+            (2, 21, 499_00, .expense, "NETFLIX", "Entertainment", ""),
+            (3, 13, 320_00, .expense, "ZOMATO", "Food", ""),
+            (4, 18, 2_150_00, .expense, "AMAZON", "Shopping", ""),
+            (5, 10, 1_830_00, .expense, "BESCOM", "Bills", ""),
+            (6, 9, 210_00, .expense, "UBER", "Transport", ""),
+            (7, 14, 650_00, .expense, "APOLLO PHARMACY", "Health", ""),
+            (8, 12, 18_000_00, .expense, nil, "Rent", "October rent"),
+            (9, 19, 380_00, .expense, "SWIGGY", "Food", ""),
+            (10, 11, 50_000_00, .income, "ACME PVT LTD", "Salary", ""),
+            (12, 20, 899_00, .expense, "BIGBASKET", "Groceries", ""),
+            (13, 8, 140_00, .expense, "UBER", "Transport", ""),
+            (15, 21, 1_199_00, .income, "AMAZON", "Refund", ""),
+        ]
+        for (daysAgo, hour, paise, flow, merchant, categoryName, note) in samples {
+            context.insert(LedgerEntry(
+                amountPaise: paise,
+                flow: flow,
+                date: day(daysAgo, hour),
+                note: note,
+                merchant: merchant,
+                category: category(categoryName),
+                source: merchant == nil ? .manual : .sms
+            ))
+        }
+        // Two fresh alerts still waiting for a category.
+        context.insert(LedgerEntry(amountPaise: 120_00, flow: .expense, date: day(0, 17), merchant: "RAPIDO", source: .sms))
+        context.insert(LedgerEntry(amountPaise: 2_000_00, flow: .income, date: day(0, 11), merchant: "abc", source: .sms))
+        try? context.save()
+    }
+}
+#endif
