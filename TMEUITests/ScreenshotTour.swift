@@ -34,6 +34,17 @@ final class ScreenshotTour: XCTestCase {
         buttons.min { $0.frame.minX < $1.frame.minX }?.tap()
     }
 
+    /// Just the add menu, held open.
+    func testAddMenu() {
+        app.launchArguments = ["-uiTesting", "-seedDemo"]
+        app.launch()
+        XCTAssertTrue(app.buttons["addButton"].waitForExistence(timeout: 5))
+        app.buttons["addButton"].press(forDuration: 0.6)
+        XCTAssertTrue(app.buttons["addExpense"].waitForExistence(timeout: 5))
+        sleep(1)
+        shot("06-add-options")
+    }
+
     func testTour() {
         let sms = "Sent Rs.250.00\nFrom HDFC Bank A/C *1234\nTo SWIGGY\nOn 17/10/26\nRef 629012345678\nNot You?"
         app.launchArguments = ["-uiTesting", "-seedDemo", "-simulateSMS", Data(sms.utf8).base64EncodedString()]
@@ -133,6 +144,31 @@ final class ScreenshotTour: XCTestCase {
         sleep(1)
         shot("12-month-menu")
         app.buttons.matching(NSPredicate(format: "label CONTAINS '2026'")).firstMatch.tap()
+        sleep(1)
+
+        app.buttons["trendsButton"].tap()
+        XCTAssertTrue(element("trendChart").waitForExistence(timeout: 5))
+        sleep(1)
+        shot("14a-trends")
+        app.buttons["range-3M"].tap()
+        sleep(1)
+        shot("14b-trends-3m")
+        app.buttons["range-Custom"].tap()
+        sleep(1)
+        shot("14c-trends-custom")
+        app.buttons["rangeFrom"].tap()
+        sleep(1)
+        shot("14c2-trends-calendar")
+        app.buttons["rangeFrom"].tap()
+        sleep(1)
+        app.buttons["range-30D"].tap()
+        app.buttons["trend-Food"].tap()
+        sleep(1)
+        shot("14d-trends-food")
+        app.swipeUp()
+        sleep(1)
+        shot("14e-trends-scrolled")
+        back()
         sleep(1)
 
         app.buttons["settingsButton"].tap()

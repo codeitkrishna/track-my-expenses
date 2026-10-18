@@ -13,6 +13,13 @@ struct Dock: View {
 
     @Namespace private var glass
     @State private var isPressing = false
+    /// Opens the menu if the finger is still down when it finishes.
+    @State private var holdTimer: Task<Void, Never>?
+    /// This press opened the menu, so lifting the finger leaves it open.
+    @State private var openedByHold = false
+
+    /// How long a press must last to open the menu instead of adding an expense.
+    static let holdDelay: Duration = .milliseconds(150)
 
     var body: some View {
         HStack(alignment: .bottom) {
@@ -71,14 +78,32 @@ struct Dock: View {
             .matchedTransitionSource(id: "add", in: zoom)
             .scaleEffect(isPressing && !isExpanded ? 0.9 : 1)
             .animation(.snappy(duration: 0.2), value: isPressing)
-            .onTapGesture {
-                if isExpanded { isExpanded = false } else { onAdd(.expense) }
-            }
-            .onLongPressGesture(minimumDuration: 0.15) {
-                isExpanded = true
-            } onPressingChanged: { pressing in
-                isPressing = pressing
-            }
+            // One gesture timing the press itself: a tap and a long press on
+            // the same view leave iOS to choose between them, and it often
+            // took a held press for a tap.
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !isPressing else { return }
+                        isPressing = true
+                        guard !isExpanded else { return }
+                        holdTimer = Task { @MainActor in
+                            try? await Task.sleep(for: Self.holdDelay)
+                            guard !Task.isCancelled, isPressing else { return }
+                            openedByHold = true
+                            isExpanded = true
+                        }
+                    }
+                    .onEnded { value in
+                        holdTimer?.cancel()
+                        isPressing = false
+                        if openedByHold {
+                            openedByHold = false
+                        } else if hypot(value.translation.width, value.translation.height) < 40 {
+                            if isExpanded { isExpanded = false } else { onAdd(.expense) }
+                        }
+                    }
+            )
             .sensoryFeedback(.impact(weight: .medium, intensity: 0.8), trigger: isExpanded) { _, new in new }
             .accessibilityElement()
             .accessibilityLabel(isExpanded ? "Close" : "Add expense")
@@ -103,7 +128,8 @@ struct Dock: View {
                 Text(title)
                     .font(.subheadline.weight(.medium))
                 Image(systemName: symbol)
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(tint)
                     .frame(width: 22)
             }
             .foregroundStyle(.white)
@@ -113,7 +139,8 @@ struct Dock: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.tint(tint.opacity(0.62)).interactive(), in: .capsule)
+        // Clear glass with just a hint of its colour.
+        .glassEffect(.regular.tint(tint.opacity(0.2)).interactive(), in: .capsule)
         .glassEffectID(id, in: glass)
         .accessibilityIdentifier(id)
     }

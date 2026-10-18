@@ -23,6 +23,7 @@ struct LedgerView: View {
     @State private var position = ScrollPosition(edge: .top)
     @State private var sheet: LedgerSheet?
     @State private var dockExpanded = false
+    @State private var showingTrends = false
     @State private var filedCount = 0
     @Namespace private var zoom
     private var balance = BalanceReader()
@@ -156,6 +157,10 @@ struct LedgerView: View {
             .animation(.easeOut(duration: 0.2), value: dockExpanded)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Trends", systemImage: "chart.line.uptrend.xyaxis") { showingTrends = true }
+                        .accessibilityIdentifier("trendsButton")
+                }
                 ToolbarItem(placement: .principal) {
                     MonthMenu(month: $month, months: months)
                 }
@@ -163,6 +168,9 @@ struct LedgerView: View {
                     Button("Settings", systemImage: "gearshape") { sheet = .settings }
                         .accessibilityIdentifier("settingsButton")
                 }
+            }
+            .navigationDestination(isPresented: $showingTrends) {
+                TrendsView()
             }
             .sheet(item: $sheet) { sheet in
                 switch sheet {

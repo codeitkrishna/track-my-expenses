@@ -45,6 +45,19 @@ final class TMEUITests: XCTestCase {
         XCTAssertTrue(element("monthSpent", in: app).label.contains("₹250"))
     }
 
+    func testShortHoldOpensTheMenuAndTapAddsAnExpense() {
+        let app = launch()
+        let add = app.buttons["addButton"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.press(forDuration: 0.35)
+        XCTAssertTrue(app.buttons["addExpense"].waitForExistence(timeout: 3), "A short hold opens the menu")
+        add.tap()
+        XCTAssertTrue(app.buttons["addButton"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["addExpense"].exists, "Tapping × closes it")
+        add.tap()
+        XCTAssertTrue(app.buttons["key-1"].waitForExistence(timeout: 5), "A tap goes straight to a new expense")
+    }
+
     func testAddIncomeFromTheHeldAddButton() {
         let app = launch()
         app.buttons["addButton"].press(forDuration: 0.8)
@@ -101,9 +114,8 @@ final class TMEUITests: XCTestCase {
 
         XCTAssertTrue(element("triageCard", in: app).waitForExistence(timeout: 5))
         app.buttons["tag-Food"].tap()
-        XCTAssertTrue(element("allFiled", in: app).waitForExistence(timeout: 5))
 
-        // The queue closes itself once everything is filed.
+        // The queue confirms briefly and closes itself once everything is filed.
         XCTAssertTrue(element("entry-Swiggy", in: app).waitForExistence(timeout: 5))
         waitUntilGone(queue)
         XCTAssertTrue(element("entry-Swiggy", in: app).label.contains("Food"))
@@ -196,6 +208,25 @@ final class TMEUITests: XCTestCase {
 
         app.buttons["clearFilter"].tap()
         XCTAssertTrue(element("entry-Uber", in: app).waitForExistence(timeout: 5))
+    }
+
+    func testTrendsOverAnyRange() {
+        let app = launch(["-seedDemo"])
+        app.buttons["trendsButton"].tap()
+        XCTAssertTrue(element("trendChart", in: app).waitForExistence(timeout: 5))
+        let total = element("trendTotal", in: app)
+        let lastThirtyDays = total.label
+
+        app.buttons["range-7D"].tap()
+        let changed = NSPredicate(format: "label != %@", lastThirtyDays)
+        wait(for: [expectation(for: changed, evaluatedWith: total)], timeout: 5)
+
+        app.buttons["range-Custom"].tap()
+        XCTAssertTrue(element("rangeFrom", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(element("rangeTo", in: app).exists)
+
+        app.buttons["trend-Food"].tap()
+        XCTAssertTrue(app.buttons["trendShowAll"].waitForExistence(timeout: 5), "Following one category")
     }
 
     func testScrubbingTheMonthMovesTheList() {
