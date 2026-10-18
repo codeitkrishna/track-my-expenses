@@ -23,7 +23,8 @@ final class ScreenshotTour: XCTestCase {
     }
 
     func testTour() {
-        app.launchArguments = ["-uiTesting", "-seedDemo"]
+        let sms = "Sent Rs.250.00\nFrom HDFC Bank A/C *1234\nTo SWIGGY\nOn 17/10/26\nRef 629012345678\nNot You?"
+        app.launchArguments = ["-uiTesting", "-seedDemo", "-simulateSMS", Data(sms.utf8).base64EncodedString()]
         app.launch()
         XCTAssertTrue(app.staticTexts["Needs a category"].waitForExistence(timeout: 5))
         shot("01-activity")
@@ -72,6 +73,10 @@ final class ScreenshotTour: XCTestCase {
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         shot("08-settings")
+        app.buttons["Prompt history"].tap()
+        sleep(1)
+        shot("08b-prompt-history")
+        back()
 
         app.buttons["Categories"].tap()
         sleep(1)

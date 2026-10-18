@@ -30,8 +30,36 @@ enum TagNotifications {
         UNUserNotificationCenter.current().setNotificationCategories(Set(categories))
     }
 
+    static let announceFiledKey = "announceAutoFiled"
+
+    static var announcesAutoFiled: Bool {
+        UserDefaults.standard.object(forKey: announceFiledKey) as? Bool ?? true
+    }
+
     static func askForCategory(entryID: UUID, in context: ModelContext) async {
         guard let entry = entry(withID: entryID, in: context) else { return }
+        await send(for: entry, body: "Press and hold to pick a category.", sound: .default, in: context)
+    }
+
+    /// A quiet "₹307 to Swiggy: filed under Food" for payments filed from
+    /// merchant memory, with the same buttons to change it.
+    static func announceFiled(entryID: UUID, in context: ModelContext) async {
+        guard announcesAutoFiled else {
+            PromptLog.add("Not announced: notifications for automatic filing are off in Settings.")
+            return
+        }
+        guard let entry = entry(withID: entryID, in: context) else { return }
+        let name = entry.category?.name ?? "its usual category"
+        await send(for: entry, body: "Filed under \(name). Press and hold to change.", sound: nil, in: context)
+    }
+
+    private static func send(for entry: LedgerEntry, body: String, sound: UNNotificationSound?, in context: ModelContext) async {
+        let center = UNUserNotificationCenter.current()
+        let status = await center.notificationSettings().authorizationStatus
+        guard status == .authorized || status == .provisional || status == .ephemeral else {
+            PromptLog.add("Notifications are off for TME in iOS Settings, so nothing was shown.")
+            return
+        }
         registerCategories(in: context)
 
         let content = UNMutableNotificationContent()
@@ -42,14 +70,19 @@ enum TagNotifications {
         case .income:
             content.title = entry.displayMerchant.map { "\(amount) from \($0)" } ?? "\(amount) received"
         }
-        content.body = "Press and hold to pick a category."
-        content.sound = .default
+        content.body = body
+        content.sound = sound
         content.threadIdentifier = "tag"
         content.categoryIdentifier = entry.flow == .expense ? expenseCategoryID : incomeCategoryID
         content.userInfo = [entryKey: entry.uuid.uuidString]
 
         let request = UNNotificationRequest(identifier: entry.uuid.uuidString, content: content, trigger: nil)
-        try? await UNUserNotificationCenter.current().add(request)
+        do {
+            try await center.add(request)
+            PromptLog.add(sound == nil ? "Sent a quiet notification." : "Sent a notification.")
+        } catch {
+            PromptLog.add("The notification failed: \(error.localizedDescription)")
+        }
     }
 
     /// Handles a tap on one of the banner's buttons. Returns the entry the
@@ -65,10 +98,12 @@ enum TagNotifications {
            let categoryID = UUID(uuidString: String(actionID.dropFirst(categoryActionPrefix.count))),
            let category = category(withID: categoryID, in: context) {
             Tagging.assign(category, to: entry, in: context)
+            PromptLog.add("Filed under \(category.name) from the notification.")
         } else if actionID == otherActionID,
                   let typedText,
                   let category = Tagging.findOrCreateCategory(named: typedText, flow: entry.flow, in: context) {
             Tagging.assign(category, to: entry, in: context)
+            PromptLog.add("Filed under \(category.name) from the notification.")
         } else if actionID == UNNotificationDefaultActionIdentifier {
             return id
         }

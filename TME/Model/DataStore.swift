@@ -20,6 +20,7 @@ final class DataStore {
             fatalError("Could not open the database: \(error)")
         }
         DefaultCategories.seedIfNeeded(in: container.mainContext)
+        Tagging.migrateRuleKeys(in: container.mainContext)
     }
 }
 

@@ -6,6 +6,8 @@ import TMECore
 struct DashboardView: View {
     @Query(sort: \LedgerEntry.date) private var entries: [LedgerEntry]
     @State private var month = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
+    @State private var editingBalance = false
+    private var balanceReader = BalanceReader()
 
     var body: some View {
         let stats = MonthStats(entries: entries, month: month)
@@ -13,7 +15,15 @@ struct DashboardView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     MonthSwitcher(month: $month)
-                    Totals(stats: stats)
+                    let isCurrentMonth = Calendar.current.isDate(month, equalTo: .now, toGranularity: .month)
+                    Totals(
+                        stats: stats,
+                        isCurrentMonth: isCurrentMonth,
+                        balance: Calendar.current.dateInterval(of: .month, for: month).flatMap {
+                            balanceReader.starting?.balance(for: $0, with: entries)
+                        },
+                        setBalance: balanceReader.starting == nil && isCurrentMonth ? { editingBalance = true } : nil
+                    )
                     if stats.spentPaise > 0 {
                         Card(title: "Where it went") { CategoryBreakdown(rows: stats.byCategory) }
                         Card(title: "Day by day") { DailySpending(days: stats.byDay) }
@@ -33,6 +43,9 @@ struct DashboardView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Dashboard")
+            .sheet(isPresented: $editingBalance) {
+                StartingBalanceEditor()
+            }
         }
     }
 }
@@ -64,12 +77,18 @@ private struct MonthSwitcher: View {
 }
 
 /// Spent as the headline, income and what's left beside it.
+/// Spent as the headline; income, the month's net, and your balance beside it.
 private struct Totals: View {
     let stats: MonthStats
+    let isCurrentMonth: Bool
+    /// Nil when no starting balance covers this month.
+    let balance: Int?
+    let setBalance: (() -> Void)?
 
     var body: some View {
-        let left = stats.incomePaise - stats.spentPaise
-        VStack(alignment: .leading, spacing: 14) {
+        let net = stats.incomePaise - stats.spentPaise
+        let monthName = stats.month.formatted(.dateTime.month(.wide))
+        VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Spent")
                     .font(.subheadline)
@@ -79,19 +98,32 @@ private struct Totals: View {
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
             }
+            .accessibilityElement(children: .combine)
             HStack(spacing: 12) {
                 StatTile(label: "Income", value: Rupees.format(paise: stats.incomePaise), valueColor: Palette.income)
                 StatTile(
-                    label: left >= 0 ? "Left" : "Over by",
-                    value: Rupees.format(paise: abs(left)),
+                    label: isCurrentMonth ? "Net this month" : "Net in \(monthName)",
+                    value: (net < 0 ? "−" : "+") + Rupees.format(paise: abs(net)),
                     valueColor: .primary
                 )
+                .accessibilityIdentifier("dashboardNet")
+            }
+            if let balance {
+                StatTile(
+                    label: isCurrentMonth ? "Balance now" : "Balance at the end of \(monthName)",
+                    value: Rupees.format(paise: balance),
+                    valueColor: .primary
+                )
+                .accessibilityIdentifier("dashboardBalance")
+            } else if let setBalance {
+                Button("Set your starting balance to see it here", systemImage: "plus.circle", action: setBalance)
+                    .font(.subheadline.weight(.medium))
+                    .buttonStyle(.borderless)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -114,6 +146,7 @@ private struct StatTile: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
     }
 }
 

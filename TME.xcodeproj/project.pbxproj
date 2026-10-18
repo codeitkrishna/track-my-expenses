@@ -12,6 +12,7 @@
 		086E952797FD21B177630E49 /* DataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEEE9FEC0DF635F4DFD18353 /* DataStore.swift */; };
 		0ACE79E54D189CC4E1BDF3F0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2E83F56D55A7B561380A67C1 /* Assets.xcassets */; };
 		0AF2BDB6ADBF800138761220 /* TMEWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 847E9B29EB185DE17F778FD3 /* TMEWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		0C94C62DDD4044914DD722A5 /* PromptLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B13D14101F383CF919308CE /* PromptLog.swift */; };
 		1552E136FF9CCEBC94716F85 /* ScreenshotTour.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CFA25584BB3CF3ECBE69774 /* ScreenshotTour.swift */; };
 		15BB714FFE55EDD6DA29A602 /* SMSIngest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A663B18C982DF1B180EA0D /* SMSIngest.swift */; };
 		27297C8E5E975711192F726E /* DefaultCategories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EDEC07AEE110D508A4FA51 /* DefaultCategories.swift */; };
@@ -109,6 +110,7 @@
 		7F2A6671B80A3AF0CD06D177 /* TagActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagActivityWidget.swift; sourceTree = "<group>"; };
 		7FEA6DDC16D439B32B584C89 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		847E9B29EB185DE17F778FD3 /* TMEWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TMEWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8B13D14101F383CF919308CE /* PromptLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptLog.swift; sourceTree = "<group>"; };
 		94A40063B62CF9764C8A4AC6 /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
 		A3276F52B6A282894388B8A9 /* TMEUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TMEUITests.swift; sourceTree = "<group>"; };
 		A7FE9F51C82A1C0414F2EF75 /* CategoriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoriesView.swift; sourceTree = "<group>"; };
@@ -262,6 +264,7 @@
 		7E752A1F89064699D61B292A /* Notifications */ = {
 			isa = PBXGroup;
 			children = (
+				8B13D14101F383CF919308CE /* PromptLog.swift */,
 				E05A04B6828F041E79910D01 /* TagActivities.swift */,
 				6A4DDABD2FFD2856876088C2 /* TagNotifications.swift */,
 			);
@@ -514,6 +517,7 @@
 				2E0AC4350F7C898BF53556DC /* Models.swift in Sources */,
 				A1C0C5AD42084D735113FF79 /* MonthStats.swift in Sources */,
 				C868F4DDAD485BBDF73A81A4 /* Palette.swift in Sources */,
+				0C94C62DDD4044914DD722A5 /* PromptLog.swift in Sources */,
 				542F24AA5D6388B290D95F19 /* QuickAddView.swift in Sources */,
 				995DCCFA1258BAC2A1E8AC4C /* RootView.swift in Sources */,
 				15BB714FFE55EDD6DA29A602 /* SMSIngest.swift in Sources */,

@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Query private var entries: [LedgerEntry]
     @State private var editingBalance = false
     @AppStorage(TagActivities.enabledKey) private var askInDynamicIsland = true
+    @AppStorage(TagNotifications.announceFiledKey) private var announceAutoFiled = true
     private var balance = BalanceReader()
 
     var body: some View {
@@ -69,10 +70,23 @@ struct SettingsView: View {
                                 .foregroundStyle(.tint)
                         }
                     }
+                    Toggle(isOn: $announceAutoFiled) {
+                        Label {
+                            Text("Tell me about automatic filing")
+                        } icon: {
+                            Image(systemName: "checkmark.bubble")
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                    NavigationLink {
+                        PromptHistoryView()
+                    } label: {
+                        Label("Prompt history", systemImage: "clock.arrow.circlepath")
+                    }
                 } header: {
                     Text("Category prompts")
                 } footer: {
-                    Text("New payments pop up at the top of the screen with category buttons. When iOS doesn't allow that, you get a notification instead.")
+                    Text("New payments pop up at the top of the screen with category buttons; when iOS doesn't allow that, you get a notification. Payments from merchants TME already knows are filed for you, with a quiet notification.")
                 }
 
                 Section {
@@ -139,5 +153,45 @@ private struct NotificationStatusRow: View {
 
     private func refresh() async {
         status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+}
+
+/// What TME did with each payment the SMS automation sent it, newest first.
+struct PromptHistoryView: View {
+    @State private var events: [PromptLog.Event] = []
+
+    var body: some View {
+        List {
+            ForEach(events.reversed()) { event in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.text)
+                        .font(.callout)
+                    Text(event.date.formatted(date: .abbreviated, time: .standard))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .overlay {
+            if events.isEmpty {
+                ContentUnavailableView(
+                    "Nothing yet",
+                    systemImage: "clock",
+                    description: Text("Each payment your SMS automation sends to TME shows up here, with what TME did about it.")
+                )
+            }
+        }
+        .navigationTitle("Prompt history")
+        .toolbar {
+            if !events.isEmpty {
+                Button("Clear") {
+                    PromptLog.clear()
+                    events = []
+                }
+            }
+        }
+        .task { events = PromptLog.load() }
+        .refreshable { events = PromptLog.load() }
     }
 }

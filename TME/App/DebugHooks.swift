@@ -16,8 +16,8 @@ enum DebugHooks {
         if let encoded = LaunchOptions.value(after: "-simulateSMS"),
            let data = Data(base64Encoded: encoded),
            let message = String(data: data, encoding: .utf8) {
-            if case .needsCategory(let id) = try? SMSIngest.handle(message, in: context) {
-                Task { await TagPrompt.ask(entryID: id, in: context) }
+            if let outcome = try? SMSIngest.handle(message, in: context) {
+                Task { await TagPrompt.follow(outcome, in: context) }
             }
         }
     }

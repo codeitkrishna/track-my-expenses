@@ -9,6 +9,7 @@ struct TMEApp: App {
         // UI tests start from a clean slate: no starting balance or other settings.
         if LaunchOptions.isUITesting, let id = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: id)
+            PromptLog.clear()
         }
     }
 

@@ -98,9 +98,7 @@ struct LogBankSMSIntent: AppIntent, LiveActivityIntent {
     @MainActor
     func perform() async throws -> some IntentResult {
         let context = DataStore.shared.context
-        if case .needsCategory(let id) = try SMSIngest.handle(message, in: context) {
-            await TagPrompt.ask(entryID: id, in: context)
-        }
+        await TagPrompt.follow(try SMSIngest.handle(message, in: context), in: context)
         return .result()
     }
 }

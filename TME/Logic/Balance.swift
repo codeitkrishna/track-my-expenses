@@ -13,6 +13,14 @@ struct StartingBalance: Equatable {
             return entry.flow == .income ? total + entry.amountPaise : total - entry.amountPaise
         }
     }
+
+    /// The balance to show for a month: now for the current month, at its
+    /// last moment for a past one, nil for months before tracking began.
+    func balance(for month: DateInterval, with entries: [LedgerEntry], now: Date = .now) -> Int? {
+        if month.contains(now) { return current(with: entries) }
+        guard month.end > asOf else { return nil }
+        return current(with: entries.filter { $0.date < month.end })
+    }
 }
 
 /// Where the starting balance is kept (on this iPhone, in its backups).

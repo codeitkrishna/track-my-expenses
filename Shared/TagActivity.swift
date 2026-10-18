@@ -25,6 +25,8 @@ struct TagActivityAttributes: ActivityAttributes {
     let merchant: String?
     /// The most-used categories, shown as buttons.
     let options: [Option]
+    /// Other payments still waiting for a category.
+    let waiting: Int
 
     var headline: String {
         switch (isIncome, merchant) {

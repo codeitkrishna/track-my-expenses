@@ -115,6 +115,7 @@ final class LedgerEntry {
 }
 
 /// "Payments to this merchant go in this category", learned from your tagging.
+/// Keyed by direction and merchant, e.g. "expense:swiggy".
 @Model
 final class MerchantRule {
     @Attribute(.unique) var key: String = ""

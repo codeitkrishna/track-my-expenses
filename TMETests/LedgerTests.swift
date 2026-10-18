@@ -92,6 +92,44 @@ struct LedgerTests {
         }
     }
 
+    @Test func refundDoesNotReplaceTheMerchantsExpenseCategory() throws {
+        // A Swiggy payment filed under Food...
+        _ = try SMSIngest.handle(swiggyDebit, in: context)
+        Tagging.assign(try category("Food"), to: try #require(try entries().first), in: context)
+
+        // ...then a Swiggy refund filed under Refund.
+        let refund = "Refund of Rs 250.00 from SWIGGY credited to your HDFC Bank Card 1234 on 17-10-26"
+        guard case .needsCategory(let refundID) = try SMSIngest.handle(refund, in: context) else {
+            Issue.record("The first refund should ask for a category")
+            return
+        }
+        Tagging.assign(try category("Refund"), to: try #require(try entries().first { $0.uuid == refundID }), in: context)
+
+        // The next payment is still filed under Food...
+        let payment = swiggyDebit.replacingOccurrences(of: "629012345678", with: "629077777777")
+        let paymentOutcome = try SMSIngest.handle(payment, in: context)
+        let paymentEntry = try #require(try entries().first { $0.reference == "629077777777" })
+        #expect(paymentOutcome == .autoTagged(paymentEntry.uuid))
+        #expect(paymentEntry.category?.name == "Food")
+
+        // ...and the next refund under Refund.
+        let nextRefund = "Refund of Rs 99.00 from SWIGGY credited to your HDFC Bank Card 1234 on 18-10-26"
+        let refundOutcome = try SMSIngest.handle(nextRefund, in: context)
+        let refundEntry = try #require(try entries().first { $0.amountPaise == 99_00 })
+        #expect(refundOutcome == .autoTagged(refundEntry.uuid))
+        #expect(refundEntry.category?.name == "Refund")
+    }
+
+    @Test func olderMerchantMemoriesKeepWorkingAfterTheSplit() throws {
+        // A memory saved before memories were split by direction.
+        context.insert(MerchantRule(key: "swiggy", category: try category("Food")))
+        try context.save()
+        Tagging.migrateRuleKeys(in: context)
+        #expect(Tagging.rememberedCategory(for: "SWIGGY", flow: .expense, in: context)?.name == "Food")
+        #expect(Tagging.rememberedCategory(for: "SWIGGY", flow: .income, in: context) == nil)
+        #expect(try context.fetch(FetchDescriptor<MerchantRule>()).map(\.key) == ["expense:swiggy"])
+    }
+
     @Test func notificationButtonFilesTheEntry() throws {
         _ = try SMSIngest.handle(swiggyDebit, in: context)
         let entry = try #require(try entries().first)
@@ -183,6 +221,23 @@ struct BalanceTests {
         #expect(balance.current(with: entries) == 10_250_00)
     }
 
+    @Test func balanceForAMonth() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let start = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 20)))
+        let september = try #require(calendar.dateInterval(of: .month, for: start))
+        let october = try #require(calendar.dateInterval(of: .month, for: september.end))
+        let august = try #require(calendar.dateInterval(of: .month, for: september.start.addingTimeInterval(-1)))
+        let now = october.start.addingTimeInterval(10 * 86400)
+        let entries = [
+            LedgerEntry(amountPaise: 1_000_00, flow: .expense, date: start.addingTimeInterval(86400)),
+            LedgerEntry(amountPaise: 300_00, flow: .income, date: october.start.addingTimeInterval(86400)),
+        ]
+        let balance = StartingBalance(paise: 5_000_00, asOf: start)
+        #expect(balance.balance(for: august, with: entries, now: now) == nil)
+        #expect(balance.balance(for: september, with: entries, now: now) == 4_000_00)
+        #expect(balance.balance(for: october, with: entries, now: now) == 4_300_00)
+    }
+
     @Test func readsTypedBalances() {
         #expect(BalanceStore.paise(fromTyped: "52,340") == 52_340_00)
         #expect(BalanceStore.paise(fromTyped: "-1200.5") == -1_200_50)
@@ -200,5 +255,22 @@ struct BalanceTests {
         #expect(BalanceStore.load(from: defaults) == balance)
         BalanceStore.save(nil, to: defaults)
         #expect(BalanceStore.load(from: defaults) == nil)
+    }
+}
+
+@MainActor
+struct PromptLogTests {
+    let url = URL.temporaryDirectory.appending(path: "prompt-log-\(UUID().uuidString).json")
+
+    @Test func keepsTheNewest200Events() {
+        for index in 0..<205 {
+            PromptLog.add("event \(index)", to: url)
+        }
+        let events = PromptLog.load(from: url)
+        #expect(events.count == 200)
+        #expect(events.first?.text == "event 5")
+        #expect(events.last?.text == "event 204")
+        PromptLog.clear(at: url)
+        #expect(PromptLog.load(from: url).isEmpty)
     }
 }

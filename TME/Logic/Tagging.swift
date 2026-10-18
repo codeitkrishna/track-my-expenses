@@ -20,8 +20,7 @@ enum Tagging {
     }
 
     static func remember(_ category: LedgerCategory, for merchant: String, in context: ModelContext) {
-        let key = MerchantKey.make(merchant)
-        guard !key.isEmpty else { return }
+        guard let key = ruleKey(merchant: merchant, flow: category.flow) else { return }
         if let rule = rule(for: key, in: context) {
             rule.category = category
             rule.updatedAt = .now
@@ -31,11 +30,35 @@ enum Tagging {
     }
 
     static func rememberedCategory(for merchant: String, flow: Flow, in context: ModelContext) -> LedgerCategory? {
-        let key = MerchantKey.make(merchant)
-        guard !key.isEmpty, let category = rule(for: key, in: context)?.category, category.flow == flow else {
-            return nil
-        }
+        guard let key = ruleKey(merchant: merchant, flow: flow),
+              let category = rule(for: key, in: context)?.category,
+              category.flow == flow
+        else { return nil }
         return category
+    }
+
+    /// One memory per merchant and direction ("expense:swiggy",
+    /// "income:swiggy"), so filing a refund doesn't overwrite where that
+    /// merchant's payments go.
+    static func ruleKey(merchant: String, flow: Flow) -> String? {
+        let merchantKey = MerchantKey.make(merchant)
+        return merchantKey.isEmpty ? nil : "\(flow.rawValue):\(merchantKey)"
+    }
+
+    /// Memories saved before they were split by direction ("swiggy") take
+    /// the direction of the category they point to.
+    static func migrateRuleKeys(in context: ModelContext) {
+        let rules = (try? context.fetch(FetchDescriptor<MerchantRule>())) ?? []
+        var changed = false
+        for rule in rules where !rule.key.contains(":") {
+            if let category = rule.category {
+                rule.key = "\(category.flow.rawValue):\(rule.key)"
+            } else {
+                context.delete(rule)
+            }
+            changed = true
+        }
+        if changed { try? context.save() }
     }
 
     /// Categories of one type, most used first.

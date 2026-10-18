@@ -39,8 +39,15 @@ struct TagActivityWidget: Widget {
                         .padding(.trailing, 6)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    PromptChoices(attributes: context.attributes, state: context.state, onIsland: true)
-                        .padding(.top, 4)
+                    VStack(spacing: 6) {
+                        PromptChoices(attributes: context.attributes, state: context.state, onIsland: true)
+                        if context.state.filedUnder == nil, context.attributes.waiting > 0 {
+                            Text(waitingText(context.attributes.waiting))
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                    }
+                    .padding(.top, 4)
                 }
             } compactLeading: {
                 Image(systemName: context.state.filedUnder == nil ? "indianrupeesign.circle.fill" : "checkmark.circle.fill")
@@ -74,13 +81,19 @@ private struct LockScreenPrompt: View {
             }
             PromptChoices(attributes: attributes, state: state)
             if state.filedUnder == nil {
-                Text("Tap here for another category")
+                Text(attributes.waiting > 0
+                     ? "Tap here for another category · \(waitingText(attributes.waiting))"
+                     : "Tap here for another category")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .padding()
     }
+}
+
+private func waitingText(_ count: Int) -> String {
+    count == 1 ? "+1 more payment waiting in TME" : "+\(count) more payments waiting in TME"
 }
 
 /// The category buttons, or the confirmation once one was tapped. Tapping

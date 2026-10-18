@@ -3,13 +3,48 @@ import Foundation
 import SwiftData
 import TMECore
 
-/// Asks for a new payment's category: in the Dynamic Island when iOS allows
-/// it, otherwise with a notification.
+/// Tells you about every payment an SMS logs: asks for the category of new
+/// merchants (in the Dynamic Island when iOS allows it, otherwise with a
+/// notification) and quietly confirms the ones filed automatically. Each
+/// step is recorded in the prompt history.
 @MainActor
 enum TagPrompt {
+    static func follow(_ outcome: IngestOutcome, in context: ModelContext) async {
+        switch outcome {
+        case .needsCategory(let id):
+            PromptLog.add("\(describe(id, in: context)): needs a category.")
+            await ask(entryID: id, in: context)
+        case .autoTagged(let id):
+            PromptLog.add("\(describe(id, in: context)): known merchant, filed automatically.")
+            await TagNotifications.announceFiled(entryID: id, in: context)
+        case .duplicate:
+            PromptLog.add("The same SMS arrived again; it was already logged.")
+        case .ignored:
+            PromptLog.add("An SMS matched your automation but isn't a transaction; ignored.")
+        }
+    }
+
     static func ask(entryID: UUID, in context: ModelContext) async {
-        if await TagActivities.start(entryID: entryID, in: context) { return }
+        switch await TagActivities.start(entryID: entryID, in: context) {
+        case .shown:
+            PromptLog.add("Asked in the Dynamic Island.")
+            return
+        case .turnedOff:
+            PromptLog.add("Dynamic Island prompts are off in Settings.")
+        case .notAllowed:
+            PromptLog.add("Live Activities are turned off for TME in iOS Settings.")
+        case .refused(let reason):
+            PromptLog.add("iOS refused the Dynamic Island prompt (\(reason)).")
+        }
         await TagNotifications.askForCategory(entryID: entryID, in: context)
+    }
+
+    /// "₹307 out" / "₹799 in", for the history.
+    static func describe(_ id: UUID, in context: ModelContext) -> String {
+        var descriptor = FetchDescriptor<LedgerEntry>(predicate: #Predicate { $0.uuid == id })
+        descriptor.fetchLimit = 1
+        guard let entry = try? context.fetch(descriptor).first else { return "A payment" }
+        return "\(Rupees.format(paise: entry.amountPaise)) \(entry.flow == .income ? "in" : "out")"
     }
 }
 
@@ -21,13 +56,22 @@ enum TagActivities {
         UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true
     }
 
+    enum StartResult: Equatable {
+        case shown
+        case turnedOff
+        case notAllowed
+        case refused(String)
+    }
+
     /// Shows the prompt for one payment, replacing any earlier one (those
-    /// stay under "Needs a category"). False if it couldn't be shown.
-    static func start(entryID: UUID, in context: ModelContext) async -> Bool {
-        guard isEnabled, ActivityAuthorizationInfo().areActivitiesEnabled else { return false }
+    /// stay under "Needs a category", and the prompt counts them).
+    static func start(entryID: UUID, in context: ModelContext) async -> StartResult {
+        guard isEnabled else { return .turnedOff }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return .notAllowed }
         var descriptor = FetchDescriptor<LedgerEntry>(predicate: #Predicate { $0.uuid == entryID })
         descriptor.fetchLimit = 1
-        guard let entry = try? context.fetch(descriptor).first else { return false }
+        guard let entry = try? context.fetch(descriptor).first else { return .refused("payment not found") }
+        let uncategorised = (try? context.fetchCount(FetchDescriptor<LedgerEntry>(predicate: #Predicate { $0.category == nil }))) ?? 1
 
         await endAll()
 
@@ -39,7 +83,8 @@ enum TagActivities {
             amountText: Rupees.format(paise: entry.amountPaise),
             isIncome: entry.flow == .income,
             merchant: entry.displayMerchant,
-            options: Array(options)
+            options: Array(options),
+            waiting: max(0, uncategorised - 1)
         )
         let content = ActivityContent(
             state: TagActivityAttributes.ContentState(filedUnder: nil),
@@ -64,9 +109,9 @@ enum TagActivities {
                 let activity = try Activity.request(attributes: attributes, content: content, pushType: nil)
                 await activity.update(content, alertConfiguration: alert)
             }
-            return true
+            return .shown
         } catch {
-            return false
+            return .refused(error.localizedDescription)
         }
     }
 
@@ -82,6 +127,7 @@ enum TagActivities {
               let category = try? context.fetch(categoryDescriptor).first
         else { return }
         Tagging.assign(category, to: entry, in: context)
+        PromptLog.add("Filed under \(category.name) from the Dynamic Island.")
         await markFiled(entryID: entryID, as: category.name)
         TagNotifications.registerCategories(in: context)
     }

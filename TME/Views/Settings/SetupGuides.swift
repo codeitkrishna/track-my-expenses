@@ -90,14 +90,14 @@ struct SMSTesterView: View {
 
     private func log() {
         do {
-            switch try SMSIngest.handle(message, in: context) {
+            let result = try SMSIngest.handle(message, in: context)
+            switch result {
             case .ignored: outcome = "Ignored: not a transaction."
             case .duplicate: outcome = "Already logged."
             case .autoTagged: outcome = "Logged and filed automatically."
-            case .needsCategory(let id):
-                outcome = "Logged. Pick its category from the prompt, or in Activity."
-                Task { await TagPrompt.ask(entryID: id, in: context) }
+            case .needsCategory: outcome = "Logged. Pick its category from the prompt, or in Activity."
             }
+            Task { await TagPrompt.follow(result, in: context) }
         } catch {
             outcome = "Couldn't save: \(error.localizedDescription)"
         }

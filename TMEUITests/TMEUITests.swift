@@ -49,6 +49,14 @@ final class TMEUITests: XCTestCase {
         app.buttons["saveButton"].tap()
         let updated = NSPredicate(format: "label CONTAINS '₹9,750'")
         wait(for: [expectation(for: updated, evaluatedWith: balance)], timeout: 5)
+
+        // The dashboard shows the same balance, and the month's net separately.
+        app.tabBars.buttons["Dashboard"].tap()
+        let dashboardBalance = app.descendants(matching: .any)["dashboardBalance"].firstMatch
+        XCTAssertTrue(dashboardBalance.waitForExistence(timeout: 5))
+        XCTAssertTrue(dashboardBalance.label.contains("Balance now"))
+        XCTAssertTrue(dashboardBalance.label.contains("₹9,750"))
+        XCTAssertTrue(app.descendants(matching: .any)["dashboardNet"].firstMatch.label.contains("−₹250"))
     }
 
     func testFilingAnSMSEntryFromActivity() {
@@ -62,6 +70,16 @@ final class TMEUITests: XCTestCase {
         let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: header)
         wait(for: [gone], timeout: 5)
         XCTAssertTrue(app.descendants(matching: .any)["entry-Swiggy"].firstMatch.waitForExistence(timeout: 5))
+    }
+
+    func testPromptHistoryRecordsWhatHappened() {
+        let sms = "Sent Rs.250.00\nFrom HDFC Bank A/C *1234\nTo SWIGGY\nOn 17/10/26\nRef 629012345678\nNot You?"
+        let app = launch(["-simulateSMS", Data(sms.utf8).base64EncodedString()])
+        XCTAssertTrue(app.staticTexts["Needs a category"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Settings"].tap()
+        app.buttons["Prompt history"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS '₹250 out: needs a category.'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Asked in the Dynamic Island.'")).firstMatch.exists)
     }
 
     func testDashboardShowsTheMonth() {
