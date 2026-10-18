@@ -130,6 +130,17 @@ struct LedgerTests {
         #expect(try context.fetch(FetchDescriptor<MerchantRule>()).map(\.key) == ["expense:swiggy"])
     }
 
+    @Test func shortcutsOfferANewCategoryChoice() async throws {
+        let expense = try await ExpenseCategoryOptions().results()
+        #expect(expense.last?.isNewCategory == true)
+        #expect(expense.dropLast().allSatisfy { !$0.isNewCategory && $0.flow == .expense })
+        let income = try await IncomeCategoryOptions().results()
+        #expect(income.last?.id == CategoryEntity.newIncomeID)
+        // Shortcuts stores the choice by ID and must be able to look it up again.
+        let resolved = try await CategoryQuery().entities(for: [CategoryEntity.newExpenseID])
+        #expect(resolved.map(\.name) == ["New category…"])
+    }
+
     @Test func notificationButtonFilesTheEntry() throws {
         _ = try SMSIngest.handle(swiggyDebit, in: context)
         let entry = try #require(try entries().first)

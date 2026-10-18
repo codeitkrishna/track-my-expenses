@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import TMECore
 
@@ -64,10 +65,13 @@ struct CategoryChip: View {
     }
 }
 
-/// A grid of category chips for picking one.
+/// A grid of category chips for picking one, ending with "+ New".
 struct CategoryPicker: View {
     let categories: [LedgerCategory]
     @Binding var selection: LedgerCategory?
+    /// The kind of category "+ New" creates.
+    let flow: Flow
+    @State private var naming = false
 
     var body: some View {
         FlowLayout(spacing: 8) {
@@ -76,6 +80,68 @@ struct CategoryPicker: View {
                     selection = selection?.uuid == category.uuid ? nil : category
                 }
             }
+            NewCategoryChip(identifier: "pickNewCategory") { naming = true }
+        }
+        .newCategoryAlert(isPresented: $naming, flow: flow) { selection = $0 }
+    }
+}
+
+/// The "+ New" chip at the end of a row of categories.
+struct NewCategoryChip: View {
+    /// Test identifier: "newCategoryChip" in lists, "pickNewCategory" in pickers.
+    var identifier = "newCategoryChip"
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "plus")
+                Text("New")
+            }
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 36)
+            .overlay(Capsule().strokeBorder(.tint, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.tint)
+        .accessibilityLabel("New category")
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+extension View {
+    /// Asks for a name and creates the category (or reuses one with the
+    /// same name), then hands it back.
+    func newCategoryAlert(isPresented: Binding<Bool>, flow: Flow, onCreate: @escaping (LedgerCategory) -> Void) -> some View {
+        modifier(NewCategoryAlert(isPresented: isPresented, flow: flow, onCreate: onCreate))
+    }
+}
+
+private struct NewCategoryAlert: ViewModifier {
+    @Environment(\.modelContext) private var context
+    @Binding var isPresented: Bool
+    let flow: Flow
+    let onCreate: (LedgerCategory) -> Void
+    @State private var name = ""
+
+    func body(content: Content) -> some View {
+        content.alert(flow == .expense ? "New expense category" : "New income category", isPresented: $isPresented) {
+            TextField("Name", text: $name)
+                .accessibilityIdentifier("newCategoryName")
+            Button("Cancel", role: .cancel) { name = "" }
+            Button("Create") {
+                if let category = Tagging.findOrCreateCategory(named: name, flow: flow, in: context) {
+                    try? context.save()
+                    TagNotifications.registerCategories(in: context)
+                    onCreate(category)
+                }
+                name = ""
+            }
+        } message: {
+            Text("Change its icon and colour any time in Settings → Categories.")
         }
     }
 }

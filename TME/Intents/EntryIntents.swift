@@ -1,4 +1,5 @@
 import AppIntents
+import SwiftData
 import TMECore
 
 /// Runs from Shortcuts, Siri or the AssistiveTouch menu. Asks for anything
@@ -16,16 +17,22 @@ struct AddExpenseIntent: AppIntent {
     @Parameter(title: "Note")
     var note: String?
 
+    @Parameter(title: "New category name", requestValueDialog: "What should the new category be called?")
+    var newCategoryName: String?
+
     static var parameterSummary: some ParameterSummary {
         Summary("Add \(\.$amount) spent on \(\.$category)") {
             \.$note
+            \.$newCategoryName
         }
     }
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let entry = try EntryWriter.add(amount: amount, flow: .expense, categoryID: category.id, note: note, in: DataStore.shared.context)
-        return .result(dialog: "Added \(Rupees.format(paise: entry.amountPaise)) to \(category.name).")
+        let context = DataStore.shared.context
+        let chosen = try await category.resolve(flow: .expense, newName: $newCategoryName, in: context)
+        let entry = try EntryWriter.add(amount: amount, flow: .expense, categoryID: chosen.uuid, note: note, in: context)
+        return .result(dialog: "Added \(Rupees.format(paise: entry.amountPaise)) to \(chosen.name).")
     }
 }
 
@@ -42,16 +49,43 @@ struct AddIncomeIntent: AppIntent {
     @Parameter(title: "Note")
     var note: String?
 
+    @Parameter(title: "New category name", requestValueDialog: "What should the new category be called?")
+    var newCategoryName: String?
+
     static var parameterSummary: some ParameterSummary {
         Summary("Add \(\.$amount) income as \(\.$category)") {
             \.$note
+            \.$newCategoryName
         }
     }
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let entry = try EntryWriter.add(amount: amount, flow: .income, categoryID: category.id, note: note, in: DataStore.shared.context)
-        return .result(dialog: "Added \(Rupees.format(paise: entry.amountPaise)) as \(category.name).")
+        let context = DataStore.shared.context
+        let chosen = try await category.resolve(flow: .income, newName: $newCategoryName, in: context)
+        let entry = try EntryWriter.add(amount: amount, flow: .income, categoryID: chosen.uuid, note: note, in: context)
+        return .result(dialog: "Added \(Rupees.format(paise: entry.amountPaise)) as \(chosen.name).")
+    }
+}
+
+extension CategoryEntity {
+    /// The category to file under: this one, or, for "New category…", one
+    /// created from the name the action asks for.
+    @MainActor
+    func resolve(flow: Flow, newName: IntentParameter<String?>, in context: ModelContext) async throws -> LedgerCategory {
+        if isNewCategory {
+            let typed = try await newName.requestValue("What should the new category be called?")
+            guard let created = Tagging.findOrCreateCategory(named: typed, flow: flow, in: context) else {
+                throw EntryError.missingName
+            }
+            try context.save()
+            TagNotifications.registerCategories(in: context)
+            return created
+        }
+        var descriptor = FetchDescriptor<LedgerCategory>(predicate: #Predicate { $0.uuid == id })
+        descriptor.fetchLimit = 1
+        guard let existing = try context.fetch(descriptor).first else { throw EntryError.missingCategory }
+        return existing
     }
 }
 

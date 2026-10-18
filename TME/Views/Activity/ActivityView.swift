@@ -228,6 +228,7 @@ private struct UncategorisedRow: View {
     let categories: [LedgerCategory]
     let onPick: (LedgerCategory) -> Void
     let onOpen: () -> Void
+    @State private var naming = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -238,10 +239,12 @@ private struct UncategorisedRow: View {
                     ForEach(categories) { category in
                         CategoryChip(category: category) { onPick(category) }
                     }
+                    NewCategoryChip { naming = true }
                 }
             }
             .scrollClipDisabled()
         }
         .padding(.vertical, 4)
+        .newCategoryAlert(isPresented: $naming, flow: entry.flow) { onPick($0) }
     }
 }

@@ -82,6 +82,41 @@ final class TMEUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Asked in the Dynamic Island.'")).firstMatch.exists)
     }
 
+    func testNewCategoryWhileAddingAnExpense() {
+        let app = launch()
+        app.buttons["addButton"].tap()
+        XCTAssertTrue(app.textFields["amountField"].waitForExistence(timeout: 5))
+        app.textFields["amountField"].typeText("120")
+        app.buttons["pickNewCategory"].tap()
+        let name = app.alerts.textFields.firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.typeText("Pets")
+        app.alerts.buttons["Create"].tap()
+
+        let pets = app.buttons["pick-Pets"]
+        XCTAssertTrue(pets.waitForExistence(timeout: 5))
+        XCTAssertTrue(pets.isSelected, "The new category is picked for this expense")
+        app.buttons["saveButton"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["entry-Pets"].firstMatch.waitForExistence(timeout: 5))
+    }
+
+    func testNewCategoryForAnSMSEntry() {
+        let sms = "Sent Rs.250.00\nFrom HDFC Bank A/C *1234\nTo SWIGGY\nOn 17/10/26\nRef 629012345678\nNot You?"
+        let app = launch(["-simulateSMS", Data(sms.utf8).base64EncodedString()])
+        XCTAssertTrue(app.staticTexts["Needs a category"].waitForExistence(timeout: 5))
+        app.buttons["newCategoryChip"].firstMatch.tap()
+        let name = app.alerts.textFields.firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.typeText("Eating out")
+        app.alerts.buttons["Create"].tap()
+
+        let header = app.staticTexts["Needs a category"]
+        wait(for: [expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: header)], timeout: 5)
+        let row = app.descendants(matching: .any)["entry-Swiggy"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.label.contains("Eating out"))
+    }
+
     func testDashboardShowsTheMonth() {
         let app = launch(["-seedDemo", "-tab", "dashboard"])
         XCTAssertTrue(app.staticTexts["Where it went"].waitForExistence(timeout: 5))

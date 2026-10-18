@@ -51,7 +51,8 @@ struct EntryEditView: View {
                 Section("Category") {
                     CategoryPicker(
                         categories: Tagging.byUse(categories.filter { $0.flow == flow }),
-                        selection: $category
+                        selection: $category,
+                        flow: flow
                     )
                     .padding(.vertical, 4)
                 }

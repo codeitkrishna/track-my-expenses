@@ -28,6 +28,11 @@ final class ScreenshotTour: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Needs a category"].waitForExistence(timeout: 5))
         shot("01-activity")
+        // Scroll the first row of category chips to its end to show "+ New".
+        app.buttons["chip-Food"].firstMatch.swipeLeft()
+        app.buttons["chip-Entertainment"].firstMatch.swipeLeft()
+        sleep(1)
+        shot("01a-new-chip-in-row")
 
         app.buttons["setBalanceButton"].tap()
         let balanceField = app.textFields["balanceField"]
@@ -47,6 +52,11 @@ final class ScreenshotTour: XCTestCase {
         amount.typeText("349")
         app.buttons["pick-Food"].tap()
         shot("03-quick-add")
+        app.buttons["pickNewCategory"].tap()
+        XCTAssertTrue(app.alerts.textFields.firstMatch.waitForExistence(timeout: 5))
+        app.alerts.textFields.firstMatch.typeText("Pets")
+        shot("03b-new-category")
+        app.alerts.buttons["Cancel"].tap()
         app.buttons["Cancel"].tap()
 
         let row = app.descendants(matching: .any)["entry-Swiggy"].firstMatch

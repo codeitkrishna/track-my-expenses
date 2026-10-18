@@ -124,7 +124,7 @@ enum TagNotifications {
             }
         actions.append(UNTextInputNotificationAction(
             identifier: otherActionID,
-            title: "Other…",
+            title: "Type a category…",
             options: [],
             icon: UNNotificationActionIcon(systemImageName: "square.and.pencil"),
             textInputButtonTitle: "Save",
