@@ -1,16 +1,21 @@
 #if DEBUG
 import Foundation
+import OSLog
 import SwiftData
+
+let debugLog = Logger(subsystem: "tme.debug", category: "hooks")
 
 /// Launch arguments for tests and screenshots:
 ///   -seedDemo              fill the store with a month of sample entries
 ///   -simulateSMS <base64>  handle a bank SMS as the automation would
-///   -tab dashboard         open on a tab (read by AppRouter)
 @MainActor
 enum DebugHooks {
     static func run(in context: ModelContext) {
+        debugLog.notice("run: args=\(LaunchOptions.arguments.dropFirst().joined(separator: " ").prefix(80), privacy: .public) uiTesting=\(LaunchOptions.isUITesting)")
         if LaunchOptions.arguments.contains("-seedDemo") {
             DemoData.insert(into: context)
+            let count = (try? context.fetchCount(FetchDescriptor<LedgerEntry>())) ?? -1
+            debugLog.notice("seeded: entries=\(count)")
         }
         // Base64, because UI-test launch arguments lose the line breaks bank SMS rely on.
         if let encoded = LaunchOptions.value(after: "-simulateSMS"),

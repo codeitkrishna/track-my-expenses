@@ -13,6 +13,7 @@ struct SMSSetupView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+            .listRowBackground(Theme.surface)
             Section("Set it up once") {
                 Step(number: 1, text: "Open the **Shortcuts** app and create a new **Automation**.")
                 Step(number: 2, text: "Choose the **Message** trigger. Set **Message Contains** to `debited`. Leave the sender empty: banks' sender names can't be picked.")
@@ -20,6 +21,7 @@ struct SMSSetupView: View {
                 Step(number: 4, text: "Add the action **Log Bank SMS** (from TME). Tap its **Message** field and pick **Shortcut Input**.")
                 Step(number: 5, text: "Repeat for the other words your bank uses. Each automation can only match one word.")
             }
+            .listRowBackground(Theme.surface)
             Section {
                 ForEach(Self.keywords, id: \.self) { word in
                     HStack {
@@ -35,13 +37,16 @@ struct SMSSetupView: View {
             } footer: {
                 Text("OTPs, bill reminders and offers are ignored even if they contain these words. Use **Test a bank SMS** to check your bank's format.")
             }
+            .listRowBackground(Theme.surface)
             Section("Good to know") {
                 Text("If the same payment arrives twice, it's only logged once.")
                 Text("Once you've filed a merchant, its payments are filed automatically and you won't be asked again.")
                 Text("Some banks skip the SMS for small UPI payments, such as HDFC for ₹100 and under. Add those with the quick-add button.")
             }
+            .listRowBackground(Theme.surface)
             .font(.callout)
         }
+        .matteList()
         .navigationTitle("Auto-log bank SMS")
     }
 }
@@ -62,6 +67,7 @@ struct SMSTesterView: View {
             } footer: {
                 Text("Long-press a bank SMS in Messages, tap Copy, and paste it here.")
             }
+            .listRowBackground(Theme.surface)
 
             if !message.isEmpty {
                 Section("What TME reads") {
@@ -76,15 +82,18 @@ struct SMSTesterView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .listRowBackground(Theme.surface)
                 if parsed != nil {
                     Section {
                         Button("Log it now", systemImage: "plus.circle") { log() }
                     } footer: {
                         if let outcome { Text(outcome) }
                     }
+                    .listRowBackground(Theme.surface)
                 }
             }
         }
+        .matteList()
         .navigationTitle("Test a bank SMS")
     }
 
@@ -113,22 +122,27 @@ struct FloatingButtonSetupView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+            .listRowBackground(Theme.surface)
             Section("1. Make the shortcuts") {
                 Step(number: 1, text: "In **Shortcuts**, tap **+**, add the action **Add Expense** (TME) and name the shortcut \"Add Expense\".")
                 Step(number: 2, text: "Do the same for **Add Income** and **Add Category**.")
                 Step(number: 3, text: "Make one more with the action **Open App → TME**, named \"Open TME\".")
             }
+            .listRowBackground(Theme.surface)
             Section("2. Turn on the button") {
                 Step(number: 4, text: "Go to **Settings → Accessibility → Touch → AssistiveTouch** and turn it on.")
                 Step(number: 5, text: "**Customize Top Level Menu**: set it to 3 icons and pick Add Expense, Add Income and Add Category.")
                 Step(number: 6, text: "Under **Custom Actions**, set **Long Press** to **Open Menu** and **Single-Tap** to **Open TME**.")
             }
+            .listRowBackground(Theme.surface)
             Section("How it works") {
                 Text("Long-press the button and tap Add Expense: a small prompt asks for the amount and category over whatever app you're in. TME doesn't open.")
                 Text("Prefer no button? **Settings → Accessibility → Touch → Back Tap** can run Add Expense when you double-tap the back of the phone.")
             }
+            .listRowBackground(Theme.surface)
             .font(.callout)
         }
+        .matteList()
         .navigationTitle("Floating button")
     }
 }

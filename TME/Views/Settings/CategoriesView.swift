@@ -35,8 +35,10 @@ struct CategoriesView: View {
                         addingFlow = flow
                     }
                 }
+                .listRowBackground(Theme.surface)
             }
         }
+        .matteList()
         .navigationTitle("Categories")
         .sheet(item: $editing) { category in
             CategoryEditor(category: category, flow: category.flow)
@@ -57,7 +59,7 @@ struct CategoryEditor: View {
     @State private var name: String
     @State private var symbol: String
     @State private var colorSlot: Int
-    private let flow: Flow
+    @State private var flow: Flow
 
     static let symbols = [
         "fork.knife", "cup.and.saucer", "cart", "bag", "car", "bus", "tram", "airplane", "fuelpump",
@@ -70,7 +72,7 @@ struct CategoryEditor: View {
 
     init(category: LedgerCategory?, flow: Flow) {
         self.category = category
-        self.flow = flow
+        _flow = State(initialValue: flow)
         _name = State(initialValue: category?.name ?? "")
         _symbol = State(initialValue: category?.symbol ?? "tag")
         _colorSlot = State(initialValue: category?.colorSlot ?? 0)
@@ -86,7 +88,14 @@ struct CategoryEditor: View {
                             .font(.title3)
                             .accessibilityIdentifier("categoryNameField")
                     }
+                    if category == nil {
+                        Picker("For", selection: $flow) {
+                            ForEach(Flow.allCases) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
                 }
+                .listRowBackground(Theme.surface)
                 Section("Colour") {
                     HStack(spacing: 10) {
                         ForEach(-1..<Palette.slots.count, id: \.self) { slot in
@@ -94,7 +103,7 @@ struct CategoryEditor: View {
                                 Circle()
                                     .fill(Palette.color(slot: slot))
                                     .frame(width: 28, height: 28)
-                                    .overlay(Circle().strokeBorder(.primary, lineWidth: colorSlot == slot ? 2 : 0).padding(-3))
+                                    .overlay(Circle().strokeBorder(.white, lineWidth: colorSlot == slot ? 2 : 0).padding(-3))
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(slot == -1 ? "Gray" : "Colour \(slot + 1)")
@@ -102,6 +111,7 @@ struct CategoryEditor: View {
                     }
                     .padding(.vertical, 4)
                 }
+                .listRowBackground(Theme.surface)
                 Section("Icon") {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 40))], spacing: 12) {
                         ForEach(Self.symbols, id: \.self) { candidate in
@@ -119,7 +129,9 @@ struct CategoryEditor: View {
                     }
                     .padding(.vertical, 4)
                 }
+                .listRowBackground(Theme.surface)
             }
+            .matteList()
             .navigationTitle(category == nil ? "New category" : "Edit category")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

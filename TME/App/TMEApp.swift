@@ -28,28 +28,11 @@ struct TMEApp: App {
     }
 }
 
-enum AppTab: String {
-    case activity
-    case dashboard
-    case settings
-}
-
 /// App-wide navigation requests, such as "open the entry this banner was about".
 @MainActor
 @Observable
 final class AppRouter {
     static let shared = AppRouter()
 
-    var tab: AppTab = .activity
-    var entryToTag: UUID? {
-        didSet { if entryToTag != nil { tab = .activity } }
-    }
-
-    init() {
-        #if DEBUG
-        if let tab = LaunchOptions.value(after: "-tab").flatMap(AppTab.init(rawValue:)) {
-            self.tab = tab
-        }
-        #endif
-    }
+    var entryToTag: UUID?
 }

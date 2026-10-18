@@ -12,94 +12,150 @@ final class ScreenshotTour: XCTestCase {
     }
 
     private func shot(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+        // Also straight to disk when asked (TEST_RUNNER_TME_SHOTS_DIR), so the
+        // pictures don't depend on xcodebuild finishing its result bundle.
+        if let directory = ProcessInfo.processInfo.environment["TME_SHOTS_DIR"] {
+            try? screenshot.pngRepresentation.write(to: URL(fileURLWithPath: directory).appendingPathComponent("\(name).png"))
+        }
     }
 
+    private func element(_ id: String) -> XCUIElement {
+        app.descendants(matching: .any)[id].firstMatch
+    }
+
+    /// The back button: whichever button sits furthest left in the bar.
     private func back() {
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let buttons = app.navigationBars.firstMatch.buttons.allElementsBoundByIndex
+        buttons.min { $0.frame.minX < $1.frame.minX }?.tap()
     }
 
     func testTour() {
         let sms = "Sent Rs.250.00\nFrom HDFC Bank A/C *1234\nTo SWIGGY\nOn 17/10/26\nRef 629012345678\nNot You?"
         app.launchArguments = ["-uiTesting", "-seedDemo", "-simulateSMS", Data(sms.utf8).base64EncodedString()]
         app.launch()
-        XCTAssertTrue(app.staticTexts["Needs a category"].waitForExistence(timeout: 5))
-        shot("01-activity")
-        // Scroll the first row of category chips to its end to show "+ New".
-        app.buttons["chip-Food"].firstMatch.swipeLeft()
-        app.buttons["chip-Entertainment"].firstMatch.swipeLeft()
+        if !app.buttons["tagQueueButton"].waitForExistence(timeout: 5) {
+            // The simulator sometimes already has the app running without these
+            // arguments (an empty store); start it again so it gets them.
+            app.terminate()
+            app.launch()
+        }
+        XCTAssertTrue(app.buttons["tagQueueButton"].waitForExistence(timeout: 5))
         sleep(1)
-        shot("01a-new-chip-in-row")
+        shot("01-ledger")
+
+        // An uncategorised payment opens in place.
+        element("entry-Rapido").tap()
+        sleep(1)
+        shot("02-inline-tag")
+        element("entry-Rapido").tap()
+
+        // Scroll: the strip pins and follows the list.
+        app.swipeUp(velocity: .slow)
+        sleep(1)
+        shot("03-scrolled")
+
+        // Scrub back to the start of the month.
+        let strip = element("monthStrip")
+        let from = strip.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.6))
+        let to = strip.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6))
+        from.press(forDuration: 0.1, thenDragTo: to)
+        sleep(1)
+        shot("04-scrubbed")
+
+        for _ in 0..<4 { app.swipeDown(velocity: .fast) }
+        sleep(1)
+
+        // Look at one category.
+        app.buttons["legend-Groceries"].tap()
+        sleep(1)
+        shot("05-filtered")
+        app.buttons["clearFilter"].tap()
+
+        // Hold + for more.
+        app.buttons["addButton"].press(forDuration: 0.8)
+        sleep(1)
+        shot("06-add-options")
+        app.buttons["addExpense"].tap()
+
+        XCTAssertTrue(app.buttons["key-3"].waitForExistence(timeout: 5))
+        sleep(1)
+        shot("07a-composer-empty")
+        for key in "349" { app.buttons["key-\(key)"].tap() }
+        app.buttons["pick-Food"].tap()
+        sleep(1)
+        shot("07-composer")
+        app.buttons["pickNewCategory"].tap()
+        XCTAssertTrue(app.alerts.textFields.firstMatch.waitForExistence(timeout: 5))
+        app.alerts.textFields.firstMatch.typeText("Pets")
+        shot("07b-new-category")
+        app.alerts.buttons["Cancel"].tap()
+        app.buttons["addNoteButton"].tap()
+        XCTAssertTrue(app.textFields["noteField"].waitForExistence(timeout: 5))
+        app.textFields["noteField"].typeText("With the team")
+        sleep(1)
+        shot("07c-note")
+        app.buttons["Cancel"].tap()
+        sleep(1)
+
+        element("entry-Bigbasket").tap()
+        sleep(1)
+        shot("08-edit")
+        app.buttons["Cancel"].tap()
+        sleep(1)
+
+        // File what's waiting, one card at a time.
+        app.buttons["tagQueueButton"].tap()
+        XCTAssertTrue(element("triageCard").waitForExistence(timeout: 5))
+        sleep(1)
+        shot("09-triage")
+        app.buttons["tag-Transport"].tap()
+        sleep(1)
+        shot("09b-triage-next")
+        app.buttons["closeTriage"].tap()
+        sleep(1)
 
         app.buttons["setBalanceButton"].tap()
         let balanceField = app.textFields["balanceField"]
         XCTAssertTrue(balanceField.waitForExistence(timeout: 5))
         balanceField.typeText("52340")
-        shot("01b-balance-editor")
+        shot("10-balance-editor")
         app.buttons["saveBalanceButton"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["balanceValue"].firstMatch.waitForExistence(timeout: 5))
-        shot("01c-activity-with-balance")
-        app.swipeUp()
-        shot("02-activity-scrolled")
-        app.swipeDown()
-
-        app.buttons["addButton"].tap()
-        let amount = app.textFields["amountField"]
-        XCTAssertTrue(amount.waitForExistence(timeout: 5))
-        amount.typeText("349")
-        app.buttons["pick-Food"].tap()
-        shot("03-quick-add")
-        app.buttons["pickNewCategory"].tap()
-        XCTAssertTrue(app.alerts.textFields.firstMatch.waitForExistence(timeout: 5))
-        app.alerts.textFields.firstMatch.typeText("Pets")
-        shot("03b-new-category")
-        app.alerts.buttons["Cancel"].tap()
-        app.buttons["Cancel"].tap()
-
-        let row = app.descendants(matching: .any)["entry-Swiggy"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
-        row.tap()
+        XCTAssertTrue(element("balanceValue").waitForExistence(timeout: 5))
         sleep(1)
-        shot("04-edit-entry")
-        app.buttons["Cancel"].tap()
+        shot("11-ledger-with-balance")
 
-        app.tabBars.buttons["Dashboard"].tap()
-        XCTAssertTrue(app.staticTexts["Where it went"].waitForExistence(timeout: 5))
-        shot("05-dashboard")
-        app.swipeUp()
+        app.buttons["monthMenu"].tap()
         sleep(1)
-        shot("06-dashboard-scrolled")
-        // Tap the tallest bar area in the day-by-day chart.
-        let chartTitle = app.staticTexts["Day by day"]
-        if chartTitle.exists {
-            chartTitle.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 180, dy: 200)).tap()
-            sleep(1)
-            shot("07-dashboard-day-selected")
-        }
+        shot("12-month-menu")
+        app.buttons.matching(NSPredicate(format: "label CONTAINS '2026'")).firstMatch.tap()
+        sleep(1)
 
-        app.tabBars.buttons["Settings"].tap()
+        app.buttons["settingsButton"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
-        shot("08-settings")
+        sleep(1)
+        shot("13-settings")
         app.buttons["Prompt history"].tap()
         sleep(1)
-        shot("08b-prompt-history")
+        shot("13b-prompt-history")
         back()
 
         app.buttons["Categories"].tap()
         sleep(1)
-        shot("09-categories")
+        shot("14-categories")
         app.staticTexts["Food"].firstMatch.tap()
         sleep(1)
-        shot("10-category-editor")
+        shot("15-category-editor")
         app.buttons["Cancel"].tap()
         back()
 
         app.buttons["Auto-log bank SMS"].tap()
         sleep(1)
-        shot("11-sms-setup")
+        shot("16-sms-setup")
         back()
 
         app.buttons["Test a bank SMS"].tap()
@@ -108,11 +164,11 @@ final class ScreenshotTour: XCTestCase {
         field.tap()
         field.typeText("ICICI Bank Acct XX123 debited for Rs 250.00 on 17-Oct-26; SWIGGY credited. UPI:629012345678.")
         sleep(1)
-        shot("12-sms-tester")
+        shot("17-sms-tester")
         back()
 
         app.buttons["Floating quick-add button"].tap()
         sleep(1)
-        shot("13-floating-button")
+        shot("18-floating-button")
     }
 }

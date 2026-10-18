@@ -4,6 +4,7 @@ import TMECore
 import UserNotifications
 
 struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
     @Query private var entries: [LedgerEntry]
     @State private var editingBalance = false
     @AppStorage(TagActivities.enabledKey) private var askInDynamicIsland = true
@@ -20,7 +21,6 @@ struct SettingsView: View {
                                 Text("Starting balance")
                             } icon: {
                                 Image(systemName: "indianrupeesign.circle")
-                                    .foregroundStyle(.tint)
                             }
                             Spacer()
                             Text(balanceSummary)
@@ -39,6 +39,7 @@ struct SettingsView: View {
                         Text("Your balance is this amount, plus income and minus spending logged since.")
                     }
                 }
+                .listRowBackground(Theme.surface)
 
                 Section {
                     NavigationLink {
@@ -59,6 +60,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Automation")
                 }
+                .listRowBackground(Theme.surface)
 
                 Section {
                     NotificationStatusRow()
@@ -67,7 +69,6 @@ struct SettingsView: View {
                             Text("Ask in the Dynamic Island")
                         } icon: {
                             Image(systemName: "capsule.portrait")
-                                .foregroundStyle(.tint)
                         }
                     }
                     Toggle(isOn: $announceAutoFiled) {
@@ -75,7 +76,6 @@ struct SettingsView: View {
                             Text("Tell me about automatic filing")
                         } icon: {
                             Image(systemName: "checkmark.bubble")
-                                .foregroundStyle(.tint)
                         }
                     }
                     NavigationLink {
@@ -88,6 +88,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("New payments pop up at the top of the screen with category buttons; when iOS doesn't allow that, you get a notification. Payments from merchants TME already knows are filed for you, with a quiet notification.")
                 }
+                .listRowBackground(Theme.surface)
 
                 Section {
                     ShareLink(
@@ -101,8 +102,18 @@ struct SettingsView: View {
                 } footer: {
                     Text("Everything stays on this iPhone. It's included in your normal iPhone backups.")
                 }
+                .listRowBackground(Theme.surface)
             }
+            .matteList()
+            .toggleStyle(SwitchToggleStyle(tint: Theme.income))
             .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("settingsDone")
+                }
+            }
             .sheet(isPresented: $editingBalance) {
                 StartingBalanceEditor()
             }
@@ -182,6 +193,7 @@ struct PromptHistoryView: View {
                 )
             }
         }
+        .matteList()
         .navigationTitle("Prompt history")
         .toolbar {
             if !events.isEmpty {

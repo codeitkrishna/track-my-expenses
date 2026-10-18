@@ -20,23 +20,22 @@ struct TagActivityWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label {
-                        Text(context.attributes.amountText)
-                            .font(.title3.weight(.bold))
-                            .monospacedDigit()
-                    } icon: {
-                        Image(systemName: "indianrupeesign.circle.fill")
-                            .foregroundStyle(Palette.chart)
-                    }
-                    .labelStyle(.titleOnly)
-                    .padding(.leading, 6)
+                    Text(context.attributes.amountText)
+                        .font(.system(size: 26, weight: .light))
+                        .monospacedDigit()
+                        .foregroundStyle(context.attributes.isIncome ? Palette.income : .white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .padding(.leading, 6)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(context.attributes.merchant ?? (context.attributes.isIncome ? "Received" : "Spent"))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                    Text((context.attributes.merchant ?? (context.attributes.isIncome ? "Received" : "Spent")).uppercased())
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .tracking(0.6)
+                        .foregroundStyle(.white.opacity(0.6))
                         .lineLimit(1)
                         .padding(.trailing, 6)
+                        .padding(.top, 8)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 6) {
@@ -50,15 +49,13 @@ struct TagActivityWidget: Widget {
                     .padding(.top, 4)
                 }
             } compactLeading: {
-                Image(systemName: context.state.filedUnder == nil ? "indianrupeesign.circle.fill" : "checkmark.circle.fill")
-                    .foregroundStyle(context.state.filedUnder == nil ? Palette.chart : Palette.income)
+                StatusMark(isFiled: context.state.filedUnder != nil)
             } compactTrailing: {
                 Text(context.attributes.amountText)
-                    .font(.caption.weight(.semibold))
-                    .monospacedDigit()
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundStyle(context.attributes.isIncome ? Palette.income : .white)
             } minimal: {
-                Image(systemName: "indianrupeesign.circle.fill")
-                    .foregroundStyle(Palette.chart)
+                StatusMark(isFiled: context.state.filedUnder != nil)
             }
             .widgetURL(context.attributes.entryURL)
         }
@@ -71,9 +68,8 @@ private struct LockScreenPrompt: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "indianrupeesign.circle.fill")
-                    .foregroundStyle(Palette.chart)
+            HStack(spacing: 10) {
+                StatusMark(isFiled: state.filedUnder != nil)
                 Text(attributes.headline)
                     .font(.headline)
                     .lineLimit(1)
@@ -106,34 +102,51 @@ private struct PromptChoices: View {
 
     var body: some View {
         if let filed = state.filedUnder {
-            Label("Filed under \(filed)", systemImage: "checkmark.circle.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Palette.income)
-                .frame(maxWidth: .infinity, minHeight: 50)
+            Label("Filed under \(filed)", systemImage: "checkmark")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(onIsland ? Color.white : Color.primary)
+                .frame(maxWidth: .infinity, minHeight: 46)
         } else {
             HStack(spacing: 8) {
                 ForEach(attributes.options, id: \.id) { option in
                     Button(intent: TagEntryIntent(entryID: attributes.entryID, categoryID: option.id)) {
-                        VStack(spacing: 3) {
-                            Image(systemName: option.symbol)
-                                .font(.title3)
-                                .foregroundStyle(Palette.color(slot: option.colorSlot))
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Palette.color(slot: option.colorSlot))
+                                .frame(width: 7, height: 7)
                             Text(option.name)
-                                .font(.caption.weight(.semibold))
+                                .font(.subheadline.weight(.medium))
                                 .foregroundStyle(onIsland ? Color.white : Color.primary)
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.7)
+                                .minimumScaleFactor(0.65)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .padding(.horizontal, 8)
+                        .frame(maxWidth: .infinity, minHeight: 46)
                         .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(onIsland ? Color.white.opacity(0.14) : Color.primary.opacity(0.08))
+                            Capsule().fill(onIsland ? Color.white.opacity(0.13) : Color.primary.opacity(0.08))
                         )
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(option.name)
                 }
             }
+        }
+    }
+}
+
+/// Waiting for a category: the app's dashed empty slot. Filed: a check.
+private struct StatusMark: View {
+    let isFiled: Bool
+
+    var body: some View {
+        if isFiled {
+            Image(systemName: "checkmark")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Palette.income)
+        } else {
+            Circle()
+                .strokeBorder(Color.white.opacity(0.8), style: StrokeStyle(lineWidth: 1.3, dash: [2.5, 2.5]))
+                .frame(width: 15, height: 15)
         }
     }
 }

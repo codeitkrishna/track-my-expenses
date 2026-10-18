@@ -6,14 +6,14 @@ A personal expense tracker for iPhone, built for people who won't type in every 
 - **A banner asks for the category.** Press and hold it, tap "Food", done. Once a merchant is filed, its later payments are filed automatically.
 - **Quick add from anywhere.** "Add Expense", "Add Income" and "Add Category" are Shortcuts actions, so they work from iPhone's floating AssistiveTouch button, Back Tap, or Siri without opening the app.
 - **Your balance.** Enter your current balance once; TME keeps it up to date as income and spending come in.
-- **Dashboard.** What you spent this month, where it went, day by day, and your top merchants.
+- **Your month on one screen.** Drag across the strip of daily spending to scrub through the days, tap a category to see just that one, and file uncategorised payments in place or one card at a time.
 - **Private.** Everything stays on your iPhone. No accounts, no servers, no bank logins.
 
 Reads alerts from HDFC, SBI, ICICI, Axis and Kotak (UPI, cards, NEFT, refunds). Use **Settings → Test a bank SMS** to check yours.
 
 ## Install it on your iPhone (free)
 
-You need a Mac with Xcode 27 and an Apple ID. No paid developer account.
+You need a Mac with Xcode 27, an iPhone on iOS 26 or later, and an Apple ID. No paid developer account.
 
 1. Clone this repo.
 2. Copy `Config/Signing.example.xcconfig` to `Config/Signing.xcconfig` and fill in your team ID (Xcode → Settings → Accounts) and a bundle ID prefix of your own.

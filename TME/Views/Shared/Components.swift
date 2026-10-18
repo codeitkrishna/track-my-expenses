@@ -2,16 +2,16 @@ import SwiftData
 import SwiftUI
 import TMECore
 
-/// A category's symbol on a soft tinted circle.
+/// A category's symbol in its colour, on a faint disc of the same colour.
 struct CategoryIcon: View {
     let symbol: String
     let colorSlot: Int
-    var size: CGFloat = 36
+    var size: CGFloat = 32
 
     var body: some View {
         let tint = Palette.color(slot: colorSlot)
         Image(systemName: symbol)
-            .font(.system(size: size * 0.45, weight: .semibold))
+            .font(.system(size: size * 0.42, weight: .medium))
             .foregroundStyle(tint)
             .frame(width: size, height: size)
             .background(tint.opacity(0.15), in: Circle())
@@ -20,17 +20,25 @@ struct CategoryIcon: View {
 }
 
 extension CategoryIcon {
-    init(category: LedgerCategory?, size: CGFloat = 36) {
-        self.init(
-            symbol: category?.symbol ?? "questionmark",
-            colorSlot: category?.colorSlot ?? -1,
-            size: size
-        )
+    init(category: LedgerCategory, size: CGFloat = 32) {
+        self.init(symbol: category.symbol, colorSlot: category.colorSlot, size: size)
     }
 }
 
-/// A tappable category pill. The label stays in text color; the tint only
-/// marks the icon and the selection.
+/// The empty slot a payment shows until it has a category.
+struct UntaggedIcon: View {
+    var size: CGFloat = 32
+
+    var body: some View {
+        Circle()
+            .strokeBorder(Color.white.opacity(0.45), style: StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
+/// A tappable category: a dot of its colour and its name. Picked, it fills
+/// with a wash of that colour.
 struct CategoryChip: View {
     let category: LedgerCategory
     var isSelected = false
@@ -41,72 +49,51 @@ struct CategoryChip: View {
     var body: some View {
         let tint = Palette.color(slot: category.colorSlot)
         Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: category.symbol)
-                    .foregroundStyle(tint)
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 7, height: 7)
                 Text(category.name)
                     .lineLimit(1)
-                    .foregroundStyle(.primary)
             }
-            .font(.subheadline.weight(.medium))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(minHeight: 36)
-            .background(
-                Capsule().fill(isSelected ? tint.opacity(0.18) : Color(.secondarySystemFill))
-            )
-            .overlay(
-                Capsule().strokeBorder(isSelected ? tint : .clear, lineWidth: 1.5)
-            )
+            .font(.subheadline)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 13)
+            .frame(height: 36)
+            .background(Capsule().fill(isSelected ? tint.opacity(0.3) : Theme.surface))
+            .overlay(Capsule().strokeBorder(isSelected ? tint : Theme.hairline, lineWidth: 1))
+            .contentShape(Capsule())
+            .animation(.snappy(duration: 0.2), value: isSelected)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
         .accessibilityIdentifier("\(idPrefix)-\(category.name)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
-/// A grid of category chips for picking one, ending with "+ New".
-struct CategoryPicker: View {
-    let categories: [LedgerCategory]
-    @Binding var selection: LedgerCategory?
-    /// The kind of category "+ New" creates.
-    let flow: Flow
-    @State private var naming = false
-
-    var body: some View {
-        FlowLayout(spacing: 8) {
-            ForEach(categories) { category in
-                CategoryChip(category: category, isSelected: selection?.uuid == category.uuid, idPrefix: "pick") {
-                    selection = selection?.uuid == category.uuid ? nil : category
-                }
-            }
-            NewCategoryChip(identifier: "pickNewCategory") { naming = true }
-        }
-        .newCategoryAlert(isPresented: $naming, flow: flow) { selection = $0 }
-    }
-}
-
-/// The "+ New" chip at the end of a row of categories.
+/// Makes a new category: "+ New" at the end of a wrapping set of chips, or
+/// just "+" at the start of a row that scrolls, so it never scrolls away.
 struct NewCategoryChip: View {
     /// Test identifier: "newCategoryChip" in lists, "pickNewCategory" in pickers.
     var identifier = "newCategoryChip"
+    var compact = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Image(systemName: "plus")
-                Text("New")
+                    .font(compact ? .subheadline.weight(.medium) : .caption.weight(.semibold))
+                if !compact { Text("New") }
             }
-            .font(.subheadline.weight(.medium))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(minHeight: 36)
-            .overlay(Capsule().strokeBorder(.tint, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+            .font(.subheadline)
+            .foregroundStyle(Theme.textSecondary)
+            .padding(.horizontal, compact ? 0 : 13)
+            .frame(width: compact ? 36 : nil, height: 36)
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(.tint)
+        .buttonStyle(PressableStyle())
         .accessibilityLabel("New category")
         .accessibilityIdentifier(identifier)
     }
@@ -201,20 +188,8 @@ struct AmountText: View {
     let flow: Flow
 
     var body: some View {
-        Text(flow == .income ? "+" + Rupees.format(paise: paise) : Rupees.format(paise: paise))
+        MoneyText(paise: paise, sign: flow == .income ? .plus : .none, font: .body)
             .monospacedDigit()
-            .fontWeight(.semibold)
-            .foregroundStyle(flow == .income ? Palette.income : .primary)
-    }
-}
-
-extension Rupees {
-    /// Short axis labels: "₹950", "₹1.2k", "₹1.5L".
-    static func compact(rupees: Double) -> String {
-        switch rupees {
-        case 100_000...: String(format: "₹%gL", (rupees / 100_000 * 10).rounded() / 10)
-        case 1_000...: String(format: "₹%gk", (rupees / 1_000 * 10).rounded() / 10)
-        default: String(format: "₹%.0f", rupees)
-        }
+            .foregroundStyle(flow == .income ? Theme.income : .white)
     }
 }

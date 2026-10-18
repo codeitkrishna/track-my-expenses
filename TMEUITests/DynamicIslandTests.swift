@@ -8,7 +8,7 @@ final class DynamicIslandTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting", "-simulateSMS", Data(sms.utf8).base64EncodedString()]
         app.launch()
-        XCTAssertTrue(app.staticTexts["Needs a category"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tagQueueButton"].waitForExistence(timeout: 5))
 
         // The island shows other apps' activities, so step out to the Home Screen.
         XCUIDevice.shared.press(.home)
@@ -28,8 +28,8 @@ final class DynamicIslandTests: XCTestCase {
         attach("island-filed-3s", springboard)
 
         app.activate()
-        let header = app.staticTexts["Needs a category"]
-        wait(for: [expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: header)], timeout: 10)
+        let queue = app.buttons["tagQueueButton"]
+        wait(for: [expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: queue)], timeout: 10)
         XCTAssertTrue(app.descendants(matching: .any)["entry-Swiggy"].firstMatch.waitForExistence(timeout: 5))
     }
 
