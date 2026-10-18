@@ -41,3 +41,7 @@ In the app, **Settings** walks you through:
 - The project is generated from `project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen). After adding or removing files, run `xcodegen`.
 - The SMS parser lives in `Packages/TMECore` and has its own tests: `swift test` in that folder.
 - App and UI tests: `xcodebuild test -scheme TME -destination 'platform=iOS Simulator,name=iPhone 17'`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

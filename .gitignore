@@ -8,3 +8,5 @@ xcuserdata/
 
 # Personal signing settings
 Config/Signing.xcconfig
+
+/local_docs
