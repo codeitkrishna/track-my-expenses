@@ -7,11 +7,15 @@ let debugLog = Logger(subsystem: "tme.debug", category: "hooks")
 
 /// Launch arguments for tests and screenshots:
 ///   -seedDemo              fill the store with a month of sample entries
+///   -seedLots              a heavy month: 300 payments, for scroll performance
 ///   -simulateSMS <base64>  handle a bank SMS as the automation would
 @MainActor
 enum DebugHooks {
     static func run(in context: ModelContext) {
         debugLog.notice("run: args=\(LaunchOptions.arguments.dropFirst().joined(separator: " ").prefix(80), privacy: .public) uiTesting=\(LaunchOptions.isUITesting)")
+        if LaunchOptions.arguments.contains("-seedLots") {
+            DemoData.insertLots(into: context)
+        }
         if LaunchOptions.arguments.contains("-seedDemo") {
             DemoData.insert(into: context)
             let count = (try? context.fetchCount(FetchDescriptor<LedgerEntry>())) ?? -1
@@ -30,6 +34,30 @@ enum DebugHooks {
 
 @MainActor
 enum DemoData {
+    /// Ten payments a day for the month so far, spread over every expense category.
+    static func insertLots(into context: ModelContext) {
+        let categories = ((try? context.fetch(FetchDescriptor<LedgerCategory>())) ?? []).filter { $0.flow == .expense }
+        let merchants = ["SWIGGY", "ZOMATO", "UBER", "OLA", "BIGBASKET", "AMAZON", "FLIPKART", "BESCOM", "APOLLO PHARMACY", "STARBUCKS"]
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let days = max(calendar.component(.day, from: today), 1)
+        for dayIndex in 0..<days {
+            let date = calendar.date(byAdding: .day, value: -dayIndex, to: today) ?? today
+            for payment in 0..<10 {
+                let time = calendar.date(bySettingHour: 8 + payment, minute: 5 * payment, second: 0, of: date) ?? date
+                context.insert(LedgerEntry(
+                    amountPaise: (60 + (dayIndex * 37 + payment * 53) % 900) * 100,
+                    flow: .expense,
+                    date: min(time, .now),
+                    merchant: merchants[(dayIndex + payment) % merchants.count],
+                    category: categories.isEmpty ? nil : categories[(dayIndex + payment) % categories.count],
+                    source: .sms
+                ))
+            }
+        }
+        try? context.save()
+    }
+
     static func insert(into context: ModelContext) {
         let categories = (try? context.fetch(FetchDescriptor<LedgerCategory>())) ?? []
         func category(_ name: String) -> LedgerCategory? { categories.first { $0.name == name } }

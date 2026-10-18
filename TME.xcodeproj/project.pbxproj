@@ -14,6 +14,7 @@
 		0AF2BDB6ADBF800138761220 /* TMEWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 847E9B29EB185DE17F778FD3 /* TMEWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0C94C62DDD4044914DD722A5 /* PromptLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B13D14101F383CF919308CE /* PromptLog.swift */; };
 		0F995FFB67C7E673D73F2A84 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 9F2B2C96A33830080D948F85 /* AppIcon.icon */; };
+		1229F876917B6D67B828A0D5 /* ScrollPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBBA43BE622BC00121306CE4 /* ScrollPerformanceTests.swift */; };
 		1552E136FF9CCEBC94716F85 /* ScreenshotTour.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CFA25584BB3CF3ECBE69774 /* ScreenshotTour.swift */; };
 		15BB714FFE55EDD6DA29A602 /* SMSIngest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A663B18C982DF1B180EA0D /* SMSIngest.swift */; };
 		27297C8E5E975711192F726E /* DefaultCategories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EDEC07AEE110D508A4FA51 /* DefaultCategories.swift */; };
@@ -143,6 +144,7 @@
 		CB2FC299BC681E4A36078E07 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		CD81F4AC7BC971616AC519F1 /* StartingBalanceEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartingBalanceEditor.swift; sourceTree = "<group>"; };
 		D0541A29FD037BB4E69804E4 /* QuickAddView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddView.swift; sourceTree = "<group>"; };
+		DBBA43BE622BC00121306CE4 /* ScrollPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollPerformanceTests.swift; sourceTree = "<group>"; };
 		DEEE9FEC0DF635F4DFD18353 /* DataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataStore.swift; sourceTree = "<group>"; };
 		DFE978E3E7DBB2B806EDE72B /* TME.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TME.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E05A04B6828F041E79910D01 /* TagActivities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagActivities.swift; sourceTree = "<group>"; };
@@ -377,6 +379,7 @@
 			children = (
 				AC15D55932990A2AC699ACF5 /* DynamicIslandTests.swift */,
 				6CFA25584BB3CF3ECBE69774 /* ScreenshotTour.swift */,
+				DBBA43BE622BC00121306CE4 /* ScrollPerformanceTests.swift */,
 				A3276F52B6A282894388B8A9 /* TMEUITests.swift */,
 			);
 			path = TMEUITests;
@@ -606,6 +609,7 @@
 			files = (
 				2AB13E0DC51EE3FB78131CE4 /* DynamicIslandTests.swift in Sources */,
 				1552E136FF9CCEBC94716F85 /* ScreenshotTour.swift in Sources */,
+				1229F876917B6D67B828A0D5 /* ScrollPerformanceTests.swift in Sources */,
 				68E88844A8488F0CBCA52928 /* TMEUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

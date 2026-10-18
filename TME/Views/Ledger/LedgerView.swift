@@ -16,9 +16,6 @@ struct LedgerView: View {
     @State private var filter: String?
     /// The uncategorised payment showing its category choices.
     @State private var openRow: UUID?
-    /// The day the strip marks; nil means "today" (or the latest day).
-    @State private var focus: Date?
-    @State private var scrubbing = false
     @State private var scroll = LedgerScroll()
     @State private var position = ScrollPosition(edge: .top)
     @State private var sheet: LedgerSheet?
@@ -39,7 +36,6 @@ struct LedgerView: View {
         let shownStats = filter == nil ? stats : MonthStats(entries: shown, month: month)
         let days = LedgerDay.group(shown)
         let isCurrent = interval.contains(.now)
-        let marker = focus ?? (isCurrent ? calendar.startOfDay(for: .now) : days.first?.date)
         let selected = filter.flatMap { key in stats.byCategory.first { $0.id == key } }
         let toFile = entries.filter { $0.category == nil }.count
 
@@ -57,17 +53,26 @@ struct LedgerView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 26)
 
-                    Sticky(scroll: scroll, onMove: { syncFocus(with: days) }) {
-                        MonthStrip(
-                            days: StripDay.month(interval, entries: shown),
-                            focus: marker,
-                            tint: selected.map { Palette.color(slot: $0.colorSlot) } ?? .white
-                        ) { day in
-                            scrub(to: day, days: days)
+                    StripHost(
+                        scroll: scroll,
+                        days: StripDay.month(interval, entries: shown),
+                        restingFocus: isCurrent ? calendar.startOfDay(for: .now) : days.first?.date,
+                        tint: selected.map { Palette.color(slot: $0.colorSlot) } ?? .white
+                    ) { day in
+                        scrub(to: day, days: days)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+                    .modifier(Sticky())
+                    .background {
+                        // Measured beside the pinning offset, never inside it.
+                        Color.clear.onGeometryChange(for: CGRect.self) { proxy in
+                            proxy.frame(in: .named(Self.contentSpace))
+                        } action: { frame in
+                            scroll.stripTop = frame.minY
+                            scroll.stripHeight = frame.height
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
-                        .padding(.bottom, 4)
                     }
                     .zIndex(1)
 
@@ -125,15 +130,17 @@ struct LedgerView: View {
                 .animation(.snappy, value: openRow)
             }
             .scrollPosition($position)
+            // Content passing above the pinned strip goes under an opaque bar.
+            .scrollEdgeEffectStyle(.hard, for: .top)
             .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height } action: { _, height in
                 scroll.viewport = height
             }
-            .overlay(alignment: .top) {
-                // Where the visible page starts, just under the top bar.
-                Color.clear
-                    .frame(height: 1)
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { scroll.visibleTop = $0 }
-                    .allowsHitTesting(false)
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, top in
+                // Every frame: only bookkeeping, and the marker when the day changes.
+                scroll.visibleTopInPage = top
+                guard !scroll.scrubbing else { return }
+                let day = scroll.dayUnderStrip(in: days)
+                if day != scroll.focus { scroll.focus = day }
             }
             .background(Theme.canvas)
             .overlay {
@@ -195,10 +202,10 @@ struct LedgerView: View {
             .onChange(of: month) {
                 filter = nil
                 openRow = nil
-                focus = nil
+                scroll.focus = nil
                 position.scrollTo(edge: .top)
             }
-            .onChange(of: filter) { focus = nil }
+            .onChange(of: filter) { scroll.focus = nil }
             .onChange(of: router.entryToTag, initial: true) { _, id in
                 guard let id else { return }
                 if let entry = entries.first(where: { $0.uuid == id }) { sheet = .edit(entry) }
@@ -237,22 +244,15 @@ struct LedgerView: View {
     /// the nearest earlier ones) up under the strip.
     private func scrub(to day: Date?, days: [LedgerDay]) {
         guard let day else {
-            scrubbing = false
+            scroll.scrubbing = false
             return
         }
-        scrubbing = true
-        focus = day
+        scroll.scrubbing = true
+        scroll.focus = day
         guard let target = days.first(where: { $0.date <= day }) ?? days.last,
               let top = scroll.dayTops[target.date]
         else { return }
         position.scrollTo(y: scroll.scrollY(toShowPageY: top - scroll.stripHeight))
-    }
-
-    /// Follows the list with the marker: the day under the pinned strip.
-    private func syncFocus(with days: [LedgerDay]) {
-        guard !scrubbing else { return }
-        let day = scroll.dayUnderStrip(in: days)
-        if day != focus { focus = day }
     }
 
     // MARK: Months
@@ -305,27 +305,24 @@ enum LedgerSheet: Identifiable {
     }
 }
 
-/// Where things are on the page, measured on screen so it doesn't depend on
-/// how a scroll view counts its offset. Only `lift` is observed (by the
-/// pinned strip); the rest is bookkeeping read on demand.
+/// Where things are on the page while it scrolls. Only `focus` and
+/// `viewport` are observed, and they change rarely; the rest is bookkeeping
+/// updated every frame without redrawing anything.
 @MainActor
 @Observable
 final class LedgerScroll {
-    /// How far the strip is pushed down to stay pinned; 0 while it's in place.
-    var lift: CGFloat = 0
+    /// The day the strip marks; nil means "today" (or the latest day).
+    var focus: Date?
     var viewport: CGFloat = 600
-    /// Screen y where the visible page starts, under the top bar.
-    @ObservationIgnored var visibleTop: CGFloat = 0
-    /// Screen y of the strip's own place on the page.
-    @ObservationIgnored var stripScreenTop: CGFloat = 0
+    /// The finger is on the strip: the strip leads and the list follows.
+    @ObservationIgnored var scrubbing = false
+    /// The page y showing at the top of the visible area.
+    @ObservationIgnored var visibleTopInPage: CGFloat = 0
     /// The strip's place on the page, from the page's top.
     @ObservationIgnored var stripTop: CGFloat = 0
     @ObservationIgnored var stripHeight: CGFloat = 0
     /// Each day header's distance from the top of the page.
     @ObservationIgnored var dayTops: [Date: CGFloat] = [:]
-
-    /// The page y showing at the top of the visible area.
-    var visibleTopInPage: CGFloat { stripTop + (visibleTop - stripScreenTop) }
 
     /// The `ScrollPosition` y that brings page y `y` to the top of the
     /// visible area. `scrollTo(y:)` counts from there (unlike
@@ -347,44 +344,31 @@ final class LedgerScroll {
     }
 }
 
-/// Keeps the strip pinned under the top bar once the page scrolls past it,
-/// with an opaque backing that covers the bar's area too. Its place on the
-/// page is measured outside the offset, so pinning can't feed back on itself.
-private struct Sticky<Content: View>: View {
+/// The strip, redrawn on its own when the marked day changes, so following
+/// the list never redraws the whole page.
+private struct StripHost: View {
     let scroll: LedgerScroll
-    let onMove: () -> Void
-    @ViewBuilder let content: Content
+    let days: [StripDay]
+    /// Where the marker rests before the list has scrolled to a day.
+    let restingFocus: Date?
+    let tint: Color
+    let onScrub: (Date?) -> Void
 
     var body: some View {
-        let lift = scroll.lift
+        MonthStrip(days: days, focus: scroll.focus ?? restingFocus, tint: tint, onScrub: onScrub)
+    }
+}
+
+/// Keeps the strip pinned under the top bar once the page scrolls past it.
+/// The offset is a render-time effect, so it lands in the same frame as the
+/// scroll: no state, no redraw, no lag. In the scroll view's space, 0 is the
+/// top of the visible page, just under the bar.
+private struct Sticky: ViewModifier {
+    func body(content: Content) -> some View {
         content
             .background(Theme.canvas)
-            .background(alignment: .bottom) {
-                if lift > 0 {
-                    Theme.canvas
-                        .frame(height: 400)
-                        .overlay(alignment: .bottom) {
-                            Rectangle().fill(Theme.hairline).frame(height: 0.5)
-                        }
-                }
-            }
-            .offset(y: lift)
-            .background {
-                Color.clear
-                    .onGeometryChange(for: CGRect.self) { proxy in
-                        proxy.frame(in: .named(LedgerView.contentSpace))
-                    } action: { frame in
-                        scroll.stripTop = frame.minY
-                        scroll.stripHeight = frame.height
-                    }
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.frame(in: .global).minY
-                    } action: { y in
-                        scroll.stripScreenTop = y
-                        let lift = max(0, scroll.visibleTop - y)
-                        if lift != scroll.lift { scroll.lift = lift }
-                        onMove()
-                    }
+            .visualEffect { effect, proxy in
+                effect.offset(y: max(0, -proxy.frame(in: .scrollView).minY))
             }
     }
 }
