@@ -277,17 +277,19 @@ private struct TrendChart: View {
     let tint: Color
 
     @State private var scrubIndex: Int?
+    /// The bar last tapped, read out until another tap.
+    @State private var tapped: Int?
     private let plotHeight: CGFloat = 130
 
     var body: some View {
         let top = Self.scale(for: points.map(\.spent))
-        let shown = scrubIndex ?? points.indices.last
+        let shown = scrubIndex ?? tapped.flatMap { points.indices.contains($0) ? $0 : nil } ?? points.indices.last
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 MonoLabel(shown.map { label(for: points[$0]) } ?? " ", color: scrubIndex == nil ? Theme.textSecondary : .white)
                 Spacer()
                 if let shown {
-                    Text(Rupees.format(paise: points[shown].spent))
+                    Text("\(Rupees.format(paise: points[shown].spent)) spent")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(scrubIndex == nil ? Theme.textSecondary : .white)
                         .contentTransition(.numericText())
@@ -322,25 +324,33 @@ private struct TrendChart: View {
                             path.addLine(to: CGPoint(x: geometry.size.width, y: plotHeight - y))
                         }
                         .stroke(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
-                        .overlay(alignment: .topTrailing) {
-                            Text("avg")
+                        .overlay(alignment: .topLeading) {
+                            // On the left, over the line, where the latest bars aren't.
+                            Text("avg \(Rupees.format(paise: (average + 50) / 100 * 100))")
                                 .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                .foregroundStyle(Theme.textTertiary)
-                                .offset(y: plotHeight - y - 14)
+                                .foregroundStyle(Theme.textSecondary)
+                                .padding(.horizontal, 4)
+                                .background(Theme.canvas.opacity(0.85), in: Capsule())
+                                .offset(y: plotHeight - y - 16)
                         }
                         .animation(.snappy, value: average)
                     }
                 }
                 .frame(height: plotHeight)
                 .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            let index = min(max(Int(value.location.x / slot), 0), points.count - 1)
-                            if index != scrubIndex, points.indices.contains(index) { scrubIndex = index }
-                        }
-                        .onEnded { _ in scrubIndex = nil }
-                )
+                // Hold to scrub, tap to read one bar: UIKit's recognizers, so a
+                // swipe that starts on the chart still scrolls the page.
+                .gesture(StripHold(
+                    onMove: { location in
+                        let index = min(max(Int(location.x / slot), 0), points.count - 1)
+                        if index != scrubIndex, points.indices.contains(index) { scrubIndex = index }
+                    },
+                    onEnd: { scrubIndex = nil }
+                ))
+                .gesture(StripTap { location in
+                    let index = min(max(Int(location.x / slot), 0), points.count - 1)
+                    if points.indices.contains(index) { tapped = index }
+                })
             }
             .frame(height: plotHeight)
 

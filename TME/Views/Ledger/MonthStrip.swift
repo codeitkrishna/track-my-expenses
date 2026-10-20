@@ -240,7 +240,7 @@ private struct DayTicks: View {
 
 /// Touch and hold, then slide: UIKit's long press, which fails as soon as
 /// the finger moves early, leaving the drag to the scroll view.
-private struct StripHold: UIGestureRecognizerRepresentable {
+struct StripHold: UIGestureRecognizerRepresentable {
     let onMove: (CGPoint) -> Void
     let onEnd: () -> Void
 
@@ -260,8 +260,8 @@ private struct StripHold: UIGestureRecognizerRepresentable {
     }
 }
 
-/// A tap on the strip, at a point.
-private struct StripTap: UIGestureRecognizerRepresentable {
+/// A tap, at a point.
+struct StripTap: UIGestureRecognizerRepresentable {
     let action: (CGPoint) -> Void
 
     func makeUIGestureRecognizer(context: Context) -> UITapGestureRecognizer {
