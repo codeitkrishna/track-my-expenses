@@ -403,16 +403,28 @@ struct OwedCard: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    /// Soft colours for the card: light enough to read on black.
+    private enum Ink {
+        static let brand = Color(hex: 0xB9A8FF)
+        static let date = Color(hex: 0x9FC9FF)
+        static let name = Color(hex: 0x8DEBC7)
+        static let owes = Color(hex: 0xFFBE9F)
+    }
+
+    /// A category's own colour, lightened for text.
+    private static func light(_ slot: Int?) -> Color {
+        Palette.color(slot: slot ?? -1).mix(with: .white, by: 0.42)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                MonoLabel("TME · Split")
+                MonoLabel("TME · Split", color: Ink.brand)
                 Spacer()
-                MonoLabel(Date.now.formatted(.dateTime.day().month(.abbreviated).year()))
+                MonoLabel(Date.now.formatted(.dateTime.day().month(.abbreviated).year()), color: Ink.date)
             }
-            Text("\(name) owes")
+            Text("\(Text(name).foregroundStyle(Ink.name).fontWeight(.medium)) \(Text("owes you").foregroundStyle(Ink.owes))")
                 .font(.title3)
-                .foregroundStyle(Theme.textSecondary)
                 .padding(.top, 28)
             HeroAmount(paise: owed, size: 64)
                 .padding(.top, 2)
@@ -421,7 +433,7 @@ struct OwedCard: View {
             VStack(alignment: .leading, spacing: 16) {
                 ForEach(shares) { share in
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        MonoLabel((share.entry?.date ?? .now).formatted(.dateTime.day().month(.abbreviated)))
+                        MonoLabel((share.entry?.date ?? .now).formatted(.dateTime.day().month(.abbreviated)), color: Ink.date.opacity(0.85))
                             .frame(width: 56, alignment: .leading)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(share.entry?.title ?? "Payment")
@@ -429,7 +441,7 @@ struct OwedCard: View {
                             if let details = Self.details(of: share.entry) {
                                 Text(details)
                                     .font(.footnote)
-                                    .foregroundStyle(Theme.textSecondary)
+                                    .foregroundStyle(Self.light(share.entry?.category?.colorSlot))
                             }
                             Text("of \(Rupees.format(paise: share.entry?.amountPaise ?? 0))")
                                 .font(.footnote)
@@ -444,7 +456,7 @@ struct OwedCard: View {
             }
             Rectangle().fill(Theme.hairline).frame(height: 1)
                 .padding(.vertical, 22)
-            MonoLabel(shares.count == 1 ? "1 payment" : "\(shares.count) payments")
+            MonoLabel(shares.count == 1 ? "1 payment" : "\(shares.count) payments", color: Ink.brand)
         }
         .padding(28)
         .frame(width: 390)
