@@ -23,6 +23,8 @@ struct LedgerView: View {
     @State private var showingTrends = false
     @State private var showingFriends = false
     @State private var filedCount = 0
+    /// The payment waiting for a yes before it's deleted.
+    @State private var deleting: LedgerEntry?
     @Namespace private var zoom
     private var balance = BalanceReader()
 
@@ -106,9 +108,10 @@ struct LedgerView: View {
                                 onEdit: { sheet = .edit(entry) }
                             )
                             .matchedTransitionSource(id: entry.uuid, in: zoom)
+                            .swipeToDelete { deleting = entry }
                             .contextMenu {
                                 Button("Edit", systemImage: "pencil") { sheet = .edit(entry) }
-                                Button("Delete", systemImage: "trash", role: .destructive) { delete(entry) }
+                                Button("Delete", systemImage: "trash", role: .destructive) { deleting = entry }
                             }
                         }
                     }
@@ -205,6 +208,20 @@ struct LedgerView: View {
                 }
             }
             .sensoryFeedback(.success, trigger: filedCount)
+            .confirmationDialog(
+                deleting.map { "Delete \(Rupees.format(paise: $0.amountPaise)) · \($0.title)?" } ?? "",
+                isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let deleting { delete(deleting) }
+                    deleting = nil
+                }
+            } message: {
+                if let deleting, !deleting.shares.isEmpty {
+                    Text("It's also taken off \(Self.names(of: deleting))'s account.")
+                }
+            }
             .onChange(of: month) {
                 filter = nil
                 openRow = nil
@@ -237,6 +254,13 @@ struct LedgerView: View {
         }
         TagNotifications.registerCategories(in: context)
         filedCount += 1
+    }
+
+    /// "Prakhar", "Prakhar and Riya", "Prakhar, Riya and Aman".
+    static func names(of entry: LedgerEntry) -> String {
+        let names = entry.shares.compactMap { $0.friend?.name }
+        guard let last = names.last else { return "" }
+        return names.count == 1 ? last : names.dropLast().joined(separator: ", ") + " and " + last
     }
 
     private func delete(_ entry: LedgerEntry) {

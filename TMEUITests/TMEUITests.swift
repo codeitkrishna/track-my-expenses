@@ -272,6 +272,22 @@ final class TMEUITests: XCTestCase {
         wait(for: [expectation(for: NSPredicate(format: "label CONTAINS '₹0'"), evaluatedWith: owed)], timeout: 5)
     }
 
+    func testDeletingAPaymentBySwiping() {
+        let app = launch(["-seedDemo"])
+        let row = element("entry-Swiggy", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        let uberRows = app.descendants(matching: .any).matching(identifier: "entry-Swiggy").count
+        row.swipeLeft()
+        let delete = app.buttons["swipeDelete"].firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 3), "Swiping left shows Delete")
+        // A finger on the revealed button (the slid row's accessibility
+        // frame still claims this spot, so a plain tap() calls it hidden).
+        delete.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        app.buttons["Delete"].firstMatch.tap()
+        let fewer = NSPredicate(format: "count == %d", uberRows - 1)
+        wait(for: [expectation(for: fewer, evaluatedWith: app.descendants(matching: .any).matching(identifier: "entry-Swiggy"))], timeout: 5)
+    }
+
     func testDeletingAPaymentFromAFriend() {
         let app = launch()
         // Dinner split with Prakhar (₹300 his)...
