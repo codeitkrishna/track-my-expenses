@@ -4,9 +4,11 @@ A personal expense tracker for iPhone, built for people who won't type in every 
 
 - **Bank SMS log themselves.** A Shortcuts automation hands each debit or credit alert to TME. TME reads the amount and merchant, ignores OTPs and offers, and skips duplicates.
 - **A banner asks for the category.** Press and hold it, tap "Food", done. Once a merchant is filed, its later payments are filed automatically.
-- **Quick add from anywhere.** "Add Expense", "Add Income" and "Add Category" are Shortcuts actions, so they work from iPhone's floating AssistiveTouch button, Back Tap, or Siri without opening the app.
+- **Quick add from anywhere.** "Add Expense", "Add Income" and "Add Category" are Shortcuts actions, so they work from iPhone's floating AssistiveTouch button, Back Tap, or Siri without opening the app. In the app, tap **+** for an expense, or hold it for income or a new category. Type two letters of who you paid and TME suggests people and shops you've paid before, with their usual category.
 - **Your balance.** Enter your current balance once; TME keeps it up to date as income and spending come in.
-- **Your month on one screen.** Drag across the strip of daily spending to scrub through the days, tap a category to see just that one, and file uncategorised payments in place or one card at a time.
+- **Your month on one screen.** Touch and hold the strip of daily spending to scrub through the days, tap a category to see just that one, and file uncategorised payments in place or one card at a time. Tap a payment to edit it; swipe it left to delete it.
+- **Trends.** Spending over the last 7 days to a year, or any dates you pick: how it compares with the same stretch before, a chart to scrub, each category's trend, and who you paid most.
+- **Split with friends.** Split any payment equally, by amount or by percentage, with or without yourself. The **Friends** panel shows who owes you and for which payments. Mark a payment paid back or settle everything at once, add money you lent, and share a picture of what someone owes.
 - **Private.** Everything stays on your iPhone. No accounts, no servers, no bank logins.
 
 Reads alerts from HDFC, SBI, ICICI, Axis and Kotak (UPI, cards, NEFT, refunds). Use **Settings → Test a bank SMS** to check yours.
@@ -60,6 +62,7 @@ In the app, **Settings** walks you through:
 - The project is generated from `project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen). After adding or removing files, run `xcodegen`.
 - The SMS parser lives in `Packages/TMECore` and has its own tests: `swift test` in that folder.
 - App and UI tests: `xcodebuild test -scheme TME -destination 'platform=iOS Simulator,name=iPhone 17'`.
+- Optional runs, switched on with environment variables for `xcodebuild test`: `TEST_RUNNER_TME_SCREENSHOTS=1` walks every screen and attaches screenshots, `TEST_RUNNER_TME_PERF=1` measures scrolling a busy month, and `TEST_RUNNER_TME_UPGRADE=1` checks splitting on a database made by an older version (install that version first).
 - Publishing a version for SideStore: push your commits, then run `scripts/release.sh 0.2 "What's new"`. It builds `TME.ipa` from the latest commit and creates GitHub release v0.2, and SideStore offers it to everyone who added the source. `BUILD_ONLY=1` builds without publishing.
 
 ## License
