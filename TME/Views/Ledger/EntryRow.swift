@@ -78,7 +78,12 @@ struct EntryRow: View {
     private var subtitle: String {
         var parts: [String] = [entry.category?.name ?? "Needs a category"]
         parts.append(entry.date.formatted(date: .omitted, time: .shortened))
-        if entry.source == .sms { parts.append("SMS") }
+        if !entry.shares.isEmpty {
+            let names = entry.shares.compactMap { $0.friend?.name }
+            parts.append(names.count == 1 ? "Split with \(names[0])" : "Split with \(names.count)")
+        } else if entry.source == .sms {
+            parts.append("SMS")
+        }
         return parts.joined(separator: " · ")
     }
 }

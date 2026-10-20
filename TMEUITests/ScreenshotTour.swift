@@ -45,6 +45,50 @@ final class ScreenshotTour: XCTestCase {
         shot("06-add-options")
     }
 
+    /// Splitting a payment and the friends panel.
+    func testSplitScreens() {
+        app.launchArguments = ["-uiTesting", "-seedDemo"]
+        app.launch()
+        XCTAssertTrue(app.buttons["addButton"].waitForExistence(timeout: 5))
+        app.buttons["addButton"].tap()
+        XCTAssertTrue(app.buttons["key-9"].waitForExistence(timeout: 5))
+        for key in "1800" { app.buttons["key-\(key)"].tap() }
+        app.buttons["pick-Food"].tap()
+        app.buttons["splitButton"].tap()
+        let field = app.textFields["splitFriendField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("Prakhar\n")
+        field.tap()
+        field.typeText("Riya\n")
+        app.swipeDown(velocity: .slow)
+        sleep(1)
+        shot("20-split-equal")
+        app.buttons["splitMode-percent"].tap()
+        let percent = app.textFields["splitPercent-Prakhar"]
+        if percent.waitForExistence(timeout: 3) {
+            percent.tap()
+            percent.typeText("50")
+        }
+        sleep(1)
+        shot("21-split-percent")
+        app.buttons["splitMode-equal"].tap()
+        app.buttons["splitDone"].tap()
+        sleep(1)
+        shot("22-composer-split")
+        app.buttons["saveButton"].tap()
+        sleep(1)
+        shot("23-ledger-split-row")
+
+        app.buttons["friendsButton"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["friendsTotal"].firstMatch.waitForExistence(timeout: 5))
+        sleep(1)
+        shot("24-friends")
+        app.descendants(matching: .any)["friend-Prakhar"].firstMatch.tap()
+        sleep(1)
+        shot("25-friend-detail")
+    }
+
     func testTour() {
         let sms = "Sent Rs.250.00\nFrom HDFC Bank A/C *1234\nTo SWIGGY\nOn 17/10/26\nRef 629012345678\nNot You?"
         app.launchArguments = ["-uiTesting", "-seedDemo", "-simulateSMS", Data(sms.utf8).base64EncodedString()]

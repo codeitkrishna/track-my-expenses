@@ -5,9 +5,11 @@ import TMECore
 /// Log a new payment.
 struct QuickAddView: View {
     var initialFlow: Flow = .expense
+    /// Money lent or spent for this friend: the whole amount is theirs to pay back.
+    var forFriend: String?
 
     var body: some View {
-        EntryComposer(mode: .add(initialFlow))
+        EntryComposer(mode: .add(initialFlow), forFriend: forFriend)
     }
 }
 
@@ -45,6 +47,10 @@ struct EntryComposer: View {
     /// Who was paid, or who paid.
     @State private var receiver: String
     @State private var date: Date
+    /// Friends sharing this payment, and how.
+    @State private var split: SplitDraft
+    @State private var splitting = false
+    @State private var choosingWhen = false
     @State private var naming = false
     @State private var showingSMS = false
     @State private var confirmingDelete = false
@@ -53,7 +59,7 @@ struct EntryComposer: View {
     @State private var writingNote = false
     @FocusState private var focus: Field?
 
-    init(mode: Mode) {
+    init(mode: Mode, forFriend: String? = nil) {
         self.mode = mode
         switch mode {
         case .add(let flow):
@@ -61,8 +67,14 @@ struct EntryComposer: View {
             _digits = State(initialValue: "")
             _category = State(initialValue: nil)
             _note = State(initialValue: "")
-            _receiver = State(initialValue: "")
+            _receiver = State(initialValue: forFriend ?? "")
             _date = State(initialValue: .now)
+            var draft = SplitDraft()
+            if let forFriend {
+                draft.add(forFriend)
+                draft.includesMe = false
+            }
+            _split = State(initialValue: draft)
         case .edit(let entry):
             _flow = State(initialValue: entry.flow)
             _digits = State(initialValue: Self.typed(entry.amountPaise))
@@ -70,7 +82,13 @@ struct EntryComposer: View {
             _note = State(initialValue: entry.note)
             _receiver = State(initialValue: entry.displayMerchant ?? "")
             _date = State(initialValue: entry.date)
+            _split = State(initialValue: SplitDraft(entry: entry))
         }
+    }
+
+    /// A split that's set up but doesn't add up for the amount typed.
+    private var splitIsOff: Bool {
+        !split.isEmpty && split.parts(total: paise ?? 0) == nil
     }
 
     private var editing: LedgerEntry? {
@@ -147,6 +165,9 @@ struct EntryComposer: View {
             .sheet(isPresented: $showingSMS) {
                 if let editing { SMSDetails(entry: editing) }
             }
+            .sheet(isPresented: $splitting) {
+                SplitEditor(draft: $split, total: paise ?? 0)
+            }
         }
         .presentationBackground(Theme.canvas)
     }
@@ -169,6 +190,18 @@ struct EntryComposer: View {
                 .foregroundStyle(.white)
                 .accessibilityLabel(flow == .expense ? "Paid to" : "Received from")
                 .accessibilityIdentifier("receiverField")
+            if let editing, editing.source == .sms {
+                Button { showingSMS = true } label: {
+                    Image(systemName: "message")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textTertiary)
+                        .padding(6)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel("The bank's message")
+                .accessibilityIdentifier("smsButton")
+            }
         }
         .font(.body)
         .frame(maxWidth: .infinity)
@@ -244,20 +277,44 @@ struct EntryComposer: View {
                 .buttonStyle(PressableStyle())
                 .accessibilityIdentifier("addNoteButton")
             }
-            DatePicker("When", selection: $date, in: ...Date.now.addingTimeInterval(86_400))
-                .labelsHidden()
-                .datePickerStyle(.compact)
-            if let editing, editing.source == .sms {
-                Button { showingSMS = true } label: {
-                    Image(systemName: "message")
-                        .detail()
-                }
-                .buttonStyle(PressableStyle())
-                .accessibilityLabel("The bank's message")
-                .accessibilityIdentifier("smsButton")
+            Button { splitting = true } label: {
+                Label(splitLabel, systemImage: "person.2")
+                    .detail(highlighted: !split.isEmpty, warning: splitIsOff)
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityIdentifier("splitButton")
+            Button { choosingWhen = true } label: {
+                Text(whenLabel)
+                    .detail()
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("When")
+            .accessibilityValue(date.formatted(date: .long, time: .shortened))
+            .accessibilityIdentifier("whenButton")
+            .popover(isPresented: $choosingWhen) {
+                DatePicker("When", selection: $date, in: ...Date.now.addingTimeInterval(86_400))
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .frame(width: 320)
+                    .padding(12)
+                    .presentationCompactAdaptation(.popover)
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// "Split" or "Split · 2".
+    private var splitLabel: String {
+        split.isEmpty ? "Split" : "Split · \(split.friends.count)"
+    }
+
+    /// "Today 14:32", "Yesterday 09:15", "18 Oct 20:15".
+    private var whenLabel: String {
+        let calendar = Calendar.current
+        let time = date.formatted(date: .omitted, time: .shortened)
+        if calendar.isDateInToday(date) { return "Today \(time)" }
+        if calendar.isDateInYesterday(date) { return "Yesterday \(time)" }
+        return date.formatted(.dateTime.day().month(.abbreviated)) + " " + time
     }
 
     /// "+" for a new category, then two rows of chips, most used first,
@@ -299,13 +356,14 @@ struct EntryComposer: View {
         }
         .buttonStyle(.glassProminent)
         .tint(flow == .income ? Theme.income : .white)
-        .disabled(paise == nil)
+        .disabled(paise == nil || splitIsOff)
         .animation(.snappy, value: saveTitle)
         .accessibilityIdentifier("saveButton")
     }
 
     private var saveTitle: String {
         guard let paise else { return "Save" }
+        if splitIsOff { return "Split doesn't add up" }
         let amount = Rupees.format(paise: paise)
         return category.map { "Save \(amount) · \($0.name)" } ?? "Save \(amount)"
     }
@@ -328,12 +386,18 @@ struct EntryComposer: View {
             } else if category == nil {
                 editing.category = nil
             }
+            if !split.isEmpty || !editing.shares.isEmpty {
+                Splits.apply(split, to: editing, in: context)
+            }
         } else {
             let entry = LedgerEntry(amountPaise: paise, flow: flow, date: date, note: trimmed, merchant: name.isEmpty ? nil : name)
             context.insert(entry)
             if let category {
                 // With a receiver this also files their waiting payments, as tagging does elsewhere.
                 Tagging.assign(category, to: entry, in: context)
+            }
+            if !split.isEmpty {
+                Splits.apply(split, to: entry, in: context)
             }
         }
         // Next time this receiver shows up, by hand or by SMS, it's filed the same way.
@@ -531,13 +595,13 @@ private struct SMSDetails: View {
 }
 
 private extension View {
-    /// A quiet capsule for the details under the amount.
-    func detail() -> some View {
+    /// A quiet capsule for the details under the amount; white when set.
+    func detail(highlighted: Bool = false, warning: Bool = false) -> some View {
         font(.subheadline)
-            .foregroundStyle(Theme.textSecondary)
+            .foregroundStyle(warning ? Theme.expense : (highlighted ? .white : Theme.textSecondary))
             .padding(.horizontal, 14)
             .frame(height: 34)
-            .background(Theme.surface, in: Capsule())
+            .background(highlighted ? Theme.surfaceRaised : Theme.surface, in: Capsule())
     }
 }
 

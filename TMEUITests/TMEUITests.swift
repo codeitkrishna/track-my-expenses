@@ -229,6 +229,116 @@ final class TMEUITests: XCTestCase {
         XCTAssertTrue(app.buttons["trendShowAll"].waitForExistence(timeout: 5), "Following one category")
     }
 
+    func testSplittingWithFriends() {
+        let app = launch()
+        app.buttons["addButton"].tap()
+        enter("900", in: app)
+        app.buttons["splitButton"].tap()
+
+        let field = app.textFields["splitFriendField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("Prakhar\n")
+        field.tap()
+        field.typeText("Riya\n")
+        XCTAssertTrue(element("splitStatus", in: app).label.contains("₹600 owed to you by 2 friends"))
+        app.buttons["splitDone"].tap()
+        XCTAssertTrue(app.buttons["splitButton"].label.contains("Split · 2"))
+        app.buttons["saveButton"].tap()
+
+        // The friends panel: Prakhar owes his third.
+        app.buttons["friendsButton"].tap()
+        XCTAssertTrue(element("friendsTotal", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(element("friendsTotal", in: app).label.contains("₹600"))
+        element("friend-Prakhar", in: app).tap()
+        XCTAssertTrue(element("friendOwed", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(element("friendOwed", in: app).label.contains("₹300"))
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'of ₹900'")).firstMatch.exists)
+        XCTAssertTrue(app.buttons["shareOwed"].waitForExistence(timeout: 5), "A picture to share")
+
+        // Lend him ₹200 more from his page.
+        app.buttons["addForFriend"].tap()
+        enter("200", in: app)
+        app.buttons["saveButton"].tap()
+        let owed = element("friendOwed", in: app)
+        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS '₹500'"), evaluatedWith: owed)], timeout: 5)
+
+        // He pays back one, then everything.
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'paid-'")).firstMatch.tap()
+        app.buttons["Mark as paid"].firstMatch.tap()
+        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS '₹300' OR label CONTAINS '₹200'"), evaluatedWith: owed)], timeout: 5)
+        app.buttons["settleAll"].tap()
+        app.buttons["Mark everything as paid"].firstMatch.tap()
+        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS '₹0'"), evaluatedWith: owed)], timeout: 5)
+    }
+
+    func testDeletingAPaymentFromAFriend() {
+        let app = launch()
+        // Dinner split with Prakhar (₹300 his)...
+        app.buttons["addButton"].tap()
+        enter("600", in: app)
+        app.buttons["splitButton"].tap()
+        let field = app.textFields["splitFriendField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("Prakhar\n")
+        app.buttons["splitDone"].tap()
+        app.buttons["saveButton"].tap()
+        // ...and ₹200 lent to him, added from his page.
+        app.buttons["friendsButton"].tap()
+        element("friend-Prakhar", in: app).tap()
+        app.buttons["addForFriend"].tap()
+        enter("200", in: app)
+        app.buttons["saveButton"].tap()
+        let owed = element("friendOwed", in: app)
+        XCTAssertTrue(owed.waitForExistence(timeout: 5))
+        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS '₹500'"), evaluatedWith: owed)], timeout: 5)
+
+        // Delete the loan altogether: gone from his account and from the tracker.
+        let rows = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'share-'"))
+        XCTAssertEqual(rows.count, 2)
+        rows.element(boundBy: 0).swipeLeft()
+        app.buttons["swipeRemove"].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        app.buttons["Delete payment"].firstMatch.tap()
+        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS '₹300'"), evaluatedWith: owed)], timeout: 5)
+
+        // Take the dinner off his account but keep the payment.
+        rows.element(boundBy: 0).swipeLeft()
+        app.buttons["swipeRemove"].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        app.buttons["Only remove from Prakhar"].firstMatch.tap()
+        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS '₹0'"), evaluatedWith: owed)], timeout: 5)
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(element("monthSpent", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(element("monthSpent", in: app).label.contains("₹600"), "The dinner stays; the loan is gone")
+    }
+
+    func testEditingAFriendsPaymentChangesTheSplit() {
+        let app = launch()
+        app.buttons["friendsButton"].tap()
+        app.buttons["addFriendButton"].tap()
+        app.alerts.textFields.firstMatch.typeText("Prakash")
+        app.alerts.buttons["Add"].tap()
+        element("friend-Prakash", in: app).tap()
+        app.buttons["addForFriend"].tap()
+        enter("400", in: app)
+        app.buttons["saveButton"].tap()
+        let owed = element("friendOwed", in: app)
+        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS '₹400'"), evaluatedWith: owed)], timeout: 5)
+
+        // Open it, make it 50/50 and give it a category.
+        app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'open-'")).firstMatch.tap()
+        XCTAssertTrue(app.buttons["splitButton"].waitForExistence(timeout: 5))
+        app.buttons["splitButton"].tap()
+        app.switches["splitIncludesMe"].switches.firstMatch.tap()
+        XCTAssertTrue(element("splitStatus", in: app).label.contains("₹200 owed to you"))
+        app.buttons["splitDone"].tap()
+        app.buttons["pick-Food"].tap()
+        app.buttons["saveButton"].tap()
+        wait(for: [expectation(for: NSPredicate(format: "label CONTAINS '₹200'"), evaluatedWith: owed)], timeout: 5)
+    }
+
     func testScrubbingTheMonthMovesTheList() {
         let app = launch(["-seedDemo"])
         let strip = element("monthStrip", in: app)

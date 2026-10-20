@@ -64,6 +64,13 @@ final class LedgerEntry {
     var reference: String?
     var accountTail: String?
     var rawMessage: String?
+    /// Friends' parts of this payment, if it was split.
+    @Relationship(deleteRule: .cascade, inverse: \SplitShare.entry)
+    var shares: [SplitShare] = []
+    /// How it was split ("equal", "amounts", "percent"), or nil.
+    var splitModeRaw: String?
+    /// Whether your own part was counted when it was split.
+    var splitIncludesMe: Bool = true
 
     var flow: Flow {
         get { Flow(rawValue: flowRaw) ?? .expense }
@@ -125,5 +132,48 @@ final class MerchantRule {
     init(key: String, category: LedgerCategory) {
         self.key = key
         self.category = category
+    }
+}
+
+/// Someone you split payments with.
+@Model
+final class Friend {
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var createdAt: Date = Date.now
+
+    @Relationship(deleteRule: .cascade, inverse: \SplitShare.friend)
+    var shares: [SplitShare] = []
+
+    init(name: String) {
+        self.name = name
+    }
+
+    /// Their parts not paid back yet, newest payment first.
+    var openShares: [SplitShare] {
+        shares.filter { !$0.settled && $0.entry != nil }
+            .sorted { ($0.entry?.date ?? .distantPast) > ($1.entry?.date ?? .distantPast) }
+    }
+
+    /// What they owe you now.
+    var owedPaise: Int { openShares.reduce(0) { $0 + $1.amountPaise } }
+}
+
+/// One friend's part of one payment.
+@Model
+final class SplitShare {
+    var uuid: UUID = UUID()
+    var amountPaise: Int = 0
+    /// Their part as typed, when the split was by percentage.
+    var percent: Double?
+    var settled: Bool = false
+    var settledAt: Date?
+    var friend: Friend?
+    var entry: LedgerEntry?
+
+    init(friend: Friend, amountPaise: Int, percent: Double? = nil) {
+        self.friend = friend
+        self.amountPaise = amountPaise
+        self.percent = percent
     }
 }

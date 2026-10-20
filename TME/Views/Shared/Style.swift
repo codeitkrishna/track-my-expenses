@@ -110,3 +110,114 @@ extension Rupees {
         paise == 0 ? format(paise: 0) : (paise > 0 ? "+" : "−") + format(paise: abs(paise))
     }
 }
+
+extension View {
+    /// Swipe the row left to reveal a red button, as in Mail. Vertical
+    /// scrolling and taps on the row work as before.
+    func swipeToDelete(_ title: String = "Delete", identifier: String = "swipeDelete", action: @escaping () -> Void) -> some View {
+        modifier(SwipeToDelete(title: title, identifier: identifier, action: action))
+    }
+}
+
+private struct SwipeToDelete: ViewModifier {
+    let title: String
+    let identifier: String
+    let action: () -> Void
+
+    @State private var offset: CGFloat = 0
+    /// Where the row was when the current swipe began.
+    @State private var swipeStart: CGFloat?
+    private let revealed: CGFloat = 92
+
+    func body(content: Content) -> some View {
+        content
+            // An open row takes no taps of its own: a tap just closes it.
+            .disabled(offset != 0)
+            .overlay {
+                // This layer slides with the row, so the revealed button stays tappable.
+                if offset != 0 {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { close() }
+                }
+            }
+            .offset(x: offset)
+            .background(alignment: .trailing) {
+                Button(role: .destructive) {
+                    close()
+                    action()
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "trash")
+                            .font(.body.weight(.medium))
+                        Text(title)
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(width: max(0, -offset))
+                    .frame(maxHeight: .infinity)
+                    .background(Theme.expense, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipped()
+                }
+                .buttonStyle(.plain)
+                .opacity(offset < -8 ? 1 : 0)
+                .accessibilityIdentifier(identifier)
+            }
+            // UIKit's pan, starting only for sideways movement (as table views'
+            // swipe actions do): up and down drags go straight to scrolling,
+            // and a swipe cancels the row's own tap.
+            .gesture(SidewaysPan(
+                onChange: { dx in
+                    let start = swipeStart ?? offset
+                    swipeStart = start
+                    offset = min(0, max(-revealed * 1.4, start + dx))
+                },
+                onEnd: {
+                    guard swipeStart != nil else { return }
+                    swipeStart = nil
+                    withAnimation(.snappy(duration: 0.25)) {
+                        offset = offset < -revealed / 2 ? -revealed : 0
+                    }
+                }
+            ))
+            .sensoryFeedback(.impact(weight: .light), trigger: offset == -revealed)
+            .accessibilityAction(named: title, action)
+    }
+
+    private func close() {
+        withAnimation(.snappy(duration: 0.25)) { offset = 0 }
+    }
+}
+
+/// A pan that begins only when the finger moves more sideways than up or down.
+private struct SidewaysPan: UIGestureRecognizerRepresentable {
+    let onChange: (CGFloat) -> Void
+    let onEnd: () -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let pan = UIPanGestureRecognizer()
+        pan.delegate = context.coordinator
+        return pan
+    }
+
+    func handleUIGestureRecognizerAction(_ pan: UIPanGestureRecognizer, context: Context) {
+        switch pan.state {
+        case .began, .changed: onChange(context.converter.localTranslation?.x ?? 0)
+        case .ended, .cancelled, .failed: onEnd()
+        default: break
+        }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = recognizer as? UIPanGestureRecognizer else { return false }
+            let velocity = pan.velocity(in: pan.view)
+            return abs(velocity.x) > abs(velocity.y) * 1.2
+        }
+    }
+}

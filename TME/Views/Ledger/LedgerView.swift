@@ -21,6 +21,7 @@ struct LedgerView: View {
     @State private var sheet: LedgerSheet?
     @State private var dockExpanded = false
     @State private var showingTrends = false
+    @State private var showingFriends = false
     @State private var filedCount = 0
     @Namespace private var zoom
     private var balance = BalanceReader()
@@ -164,9 +165,11 @@ struct LedgerView: View {
             .animation(.easeOut(duration: 0.2), value: dockExpanded)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItemGroup(placement: .topBarLeading) {
                     Button("Trends", systemImage: "chart.line.uptrend.xyaxis") { showingTrends = true }
                         .accessibilityIdentifier("trendsButton")
+                    Button("Friends", systemImage: "person.2") { showingFriends = true }
+                        .accessibilityIdentifier("friendsButton")
                 }
                 ToolbarItem(placement: .principal) {
                     MonthMenu(month: $month, months: months)
@@ -178,6 +181,9 @@ struct LedgerView: View {
             }
             .navigationDestination(isPresented: $showingTrends) {
                 TrendsView()
+            }
+            .navigationDestination(isPresented: $showingFriends) {
+                FriendsView()
             }
             .sheet(item: $sheet) { sheet in
                 switch sheet {
