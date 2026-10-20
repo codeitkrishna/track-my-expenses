@@ -141,6 +141,15 @@ struct EntryComposer: View {
                 if editing != nil {
                     ToolbarItem(placement: .destructiveAction) {
                         Button("Delete", systemImage: "trash", role: .destructive) { confirmingDelete = true }
+                            .confirmationDialog("Delete this payment?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                                Button("Delete", role: .destructive) {
+                                    if let editing {
+                                        context.delete(editing)
+                                        try? context.save()
+                                    }
+                                    dismiss()
+                                }
+                            }
                     }
                 }
             }
@@ -153,15 +162,6 @@ struct EntryComposer: View {
             .sensoryFeedback(.success, trigger: savedCount)
             .sensoryFeedback(.selection, trigger: category?.uuid)
             .newCategoryAlert(isPresented: $naming, flow: flow) { category = $0 }
-            .confirmationDialog("Delete this payment?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) {
-                    if let editing {
-                        context.delete(editing)
-                        try? context.save()
-                    }
-                    dismiss()
-                }
-            }
             .sheet(isPresented: $showingSMS) {
                 if let editing { SMSDetails(entry: editing) }
             }

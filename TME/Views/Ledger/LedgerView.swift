@@ -113,6 +113,21 @@ struct LedgerView: View {
                                 Button("Edit", systemImage: "pencil") { sheet = .edit(entry) }
                                 Button("Delete", systemImage: "trash", role: .destructive) { deleting = entry }
                             }
+                            // Asked next to the payment itself, not at the top of the page.
+                            .confirmationDialog(
+                                "Delete \(Rupees.format(paise: entry.amountPaise)) · \(entry.title)?",
+                                isPresented: Binding(get: { deleting?.uuid == entry.uuid }, set: { if !$0 { deleting = nil } }),
+                                titleVisibility: .visible
+                            ) {
+                                Button("Delete", role: .destructive) {
+                                    delete(entry)
+                                    deleting = nil
+                                }
+                            } message: {
+                                if !entry.shares.isEmpty {
+                                    Text("It's also taken off \(Self.names(of: entry))'s account.")
+                                }
+                            }
                         }
                     }
 
@@ -208,20 +223,6 @@ struct LedgerView: View {
                 }
             }
             .sensoryFeedback(.success, trigger: filedCount)
-            .confirmationDialog(
-                deleting.map { "Delete \(Rupees.format(paise: $0.amountPaise)) · \($0.title)?" } ?? "",
-                isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-                titleVisibility: .visible
-            ) {
-                Button("Delete", role: .destructive) {
-                    if let deleting { delete(deleting) }
-                    deleting = nil
-                }
-            } message: {
-                if let deleting, !deleting.shares.isEmpty {
-                    Text("It's also taken off \(Self.names(of: deleting))'s account.")
-                }
-            }
             .onChange(of: month) {
                 filter = nil
                 openRow = nil

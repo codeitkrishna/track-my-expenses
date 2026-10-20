@@ -89,6 +89,18 @@ final class ScreenshotTour: XCTestCase {
         shot("25-friend-detail")
     }
 
+    /// Where the delete and paid-back questions open.
+    func testDialogs() {
+        app.launchArguments = ["-uiTesting", "-seedDemo"]
+        app.launch()
+        let row = app.descendants(matching: .any)["entry-Swiggy"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.swipeLeft()
+        app.buttons["swipeDelete"].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        sleep(1)
+        shot("30-delete-dialog")
+    }
+
     func testTour() {
         let sms = "Sent Rs.250.00\nFrom HDFC Bank A/C *1234\nTo SWIGGY\nOn 17/10/26\nRef 629012345678\nNot You?"
         app.launchArguments = ["-uiTesting", "-seedDemo", "-simulateSMS", Data(sms.utf8).base64EncodedString()]

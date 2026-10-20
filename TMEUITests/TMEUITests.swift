@@ -417,6 +417,20 @@ final class TMEUITests: XCTestCase {
         }
     }
 
+    func testDeletingFromTheEditor() {
+        let app = launch(["-seedDemo"])
+        let row = element("entry-Bigbasket", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        let before = app.descendants(matching: .any).matching(identifier: "entry-Bigbasket").count
+        row.tap()
+        app.buttons["Delete"].firstMatch.tap()
+        let confirm = app.buttons.matching(NSPredicate(format: "label == 'Delete'")).element(boundBy: 1)
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "The trash button asks first")
+        confirm.tap()
+        let fewer = NSPredicate(format: "count == %d", before - 1)
+        wait(for: [expectation(for: fewer, evaluatedWith: app.descendants(matching: .any).matching(identifier: "entry-Bigbasket"))], timeout: 5)
+    }
+
     func testScrubbingTheMonthMovesTheList() {
         let app = launch(["-seedDemo"])
         let strip = element("monthStrip", in: app)
