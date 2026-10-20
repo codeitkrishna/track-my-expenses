@@ -13,7 +13,26 @@ Reads alerts from HDFC, SBI, ICICI, Axis and Kotak (UPI, cards, NEFT, refunds). 
 
 ## Install it on your iPhone (free)
 
-You need a Mac with Xcode 27, an iPhone on iOS 26 or later, and an Apple ID. No paid developer account.
+You need an iPhone on iOS 26 or later and an Apple ID. No paid developer account.
+
+### Without a Mac
+
+Install TME with [SideStore](https://docs.sidestore.io/docs/installation/prerequisites). It needs a computer (Windows is fine) only once, to set up SideStore. After that, you install, renew and update TME on the iPhone.
+
+1. Set up SideStore with [its guide](https://docs.sidestore.io/docs/installation/prerequisites). On Windows that's iTunes and iloader on the computer, and LocalDevVPN on the iPhone.
+2. In SideStore, open **Sources**, tap **+**, and add this source:
+
+   ```
+   https://github.com/codeitkrishna/track-my-expenses/releases/latest/download/source.json
+   ```
+
+3. With LocalDevVPN connected, find TME in **Browse** and install it. When SideStore asks about app extensions, keep them: choose **Keep App Extensions (Register App ID for Each Extension)**. Removing them stops the banner that asks for a category.
+
+With a free Apple ID, apps stop opening after 7 days. At least once a week, connect LocalDevVPN, open SideStore and tap **Refresh All** in **My Apps**. If SideStore itself expires, you'll need the computer to set it up again. New versions of TME show up in **My Apps**, and updating keeps your data.
+
+### With a Mac
+
+Build it yourself with Xcode 27.
 
 1. Clone this repo.
 2. Copy `Config/Signing.example.xcconfig` to `Config/Signing.xcconfig` and fill in your team ID (Xcode → Settings → Accounts) and a bundle ID prefix of your own.
@@ -41,6 +60,7 @@ In the app, **Settings** walks you through:
 - The project is generated from `project.yml` with [XcodeGen](https://github.com/yonaskolb/XcodeGen). After adding or removing files, run `xcodegen`.
 - The SMS parser lives in `Packages/TMECore` and has its own tests: `swift test` in that folder.
 - App and UI tests: `xcodebuild test -scheme TME -destination 'platform=iOS Simulator,name=iPhone 17'`.
+- Publishing a version for SideStore: push your commits, then run `scripts/release.sh 0.2 "What's new"`. It builds `TME.ipa` from the latest commit and creates GitHub release v0.2, and SideStore offers it to everyone who added the source. `BUILD_ONLY=1` builds without publishing.
 
 ## License
 
