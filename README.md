@@ -17,6 +17,8 @@ Reads alerts from HDFC, SBI, ICICI, Axis and Kotak (UPI, cards, NEFT, refunds). 
 
 You need an iPhone on iOS 26 or later and an Apple ID. No paid developer account.
 
+New to this? [GUIDE.md](GUIDE.md) walks through both ways step by step, then setting TME up and using it.
+
 ### Without a Mac
 
 Install TME with [SideStore](https://docs.sidestore.io/docs/installation/prerequisites). It needs a computer (Windows is fine) only once, to set up SideStore. After that, you install, renew and update TME on the iPhone.
@@ -37,7 +39,7 @@ With a free Apple ID, apps stop opening after 7 days. At least once a week, conn
 Build it yourself with Xcode 27.
 
 1. Clone this repo.
-2. Copy `Config/Signing.example.xcconfig` to `Config/Signing.xcconfig` and fill in your team ID (Xcode → Settings → Accounts) and a bundle ID prefix of your own.
+2. Copy `Config/Signing.example.xcconfig` to `Config/Signing.xcconfig` and fill in your team ID (sign in under Xcode → Settings → Apple Accounts; [GUIDE.md](GUIDE.md#step-3-add-your-team-id) shows how to find the ID) and a bundle ID prefix of your own.
 3. Open `TME.xcodeproj`, choose your iPhone as the run destination, and press Run.
    - iPhone on iOS 27: pair it over Wi-Fi with no cable, from Xcode's **Device Hub → + → Pair Nearby Device**.
 4. The first time, trust the app on the phone: **Settings → General → VPN & Device Management**.

@@ -1,6 +1,7 @@
 // Copy this file to Signing.xcconfig (it is git-ignored) and fill it in.
 
-// Your team ID: Xcode → Settings → Accounts → your Apple ID → the team's ID.
+// Your team ID. Sign in under Xcode → Settings → Apple Accounts, then run
+//   defaults read com.apple.dt.Xcode IDEProvisioningTeamByIdentifier | grep teamID
 // A free Apple ID works; it shows up as "(Personal Team)".
 DEVELOPMENT_TEAM = ABCDE12345
 
