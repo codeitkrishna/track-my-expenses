@@ -58,14 +58,14 @@ final class ScreenshotTour: XCTestCase {
         let field = app.textFields["splitFriendField"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
-        field.typeText("Prakhar\n")
+        field.typeText("Rahul\n")
         field.tap()
-        field.typeText("Riya\n")
+        field.typeText("Neha\n")
         app.swipeDown(velocity: .slow)
         sleep(1)
         shot("20-split-equal")
         app.buttons["splitMode-percent"].tap()
-        let percent = app.textFields["splitPercent-Prakhar"]
+        let percent = app.textFields["splitPercent-Rahul"]
         if percent.waitForExistence(timeout: 3) {
             percent.tap()
             percent.typeText("50")
@@ -84,7 +84,7 @@ final class ScreenshotTour: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["friendsTotal"].firstMatch.waitForExistence(timeout: 5))
         sleep(1)
         shot("24-friends")
-        app.descendants(matching: .any)["friend-Prakhar"].firstMatch.tap()
+        app.descendants(matching: .any)["friend-Rahul"].firstMatch.tap()
         sleep(1)
         shot("25-friend-detail")
     }

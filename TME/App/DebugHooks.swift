@@ -100,7 +100,7 @@ enum DemoData {
         }
         // Two fresh alerts still waiting for a category.
         context.insert(LedgerEntry(amountPaise: 120_00, flow: .expense, date: day(0, 17), merchant: "RAPIDO", source: .sms))
-        context.insert(LedgerEntry(amountPaise: 2_000_00, flow: .income, date: day(0, 11), merchant: "abc", source: .sms))
+        context.insert(LedgerEntry(amountPaise: 2_000_00, flow: .income, date: day(0, 11), merchant: "UPWORK", source: .sms))
         try? context.save()
     }
 }
