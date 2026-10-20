@@ -379,6 +379,44 @@ final class TMEUITests: XCTestCase {
         XCTAssertTrue(element("allFiled", in: app).waitForExistence(timeout: 5) || !queue.exists)
     }
 
+    func testScrollingStartsOnTheStrip() {
+        let app = launch(["-seedLots"])
+        let hero = element("monthSpent", in: app)
+        XCTAssertTrue(hero.waitForExistence(timeout: 10))
+        sleep(1)
+        let top = hero.frame.minY
+
+        // A thumb dragging up from the strip, at thumb speed.
+        let from = element("monthStrip", in: app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        from.press(forDuration: 0.02, thenDragTo: from.withOffset(CGVector(dx: 0, dy: -260)), withVelocity: .slow, thenHoldForDuration: 0.1)
+        sleep(1)
+        XCTAssertLessThan(hero.frame.minY, top - 100, "Dragging up from the strip scrolls the page")
+
+        // And back down, starting on the strip while it's pinned.
+        let pinned = element("monthStrip", in: app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        pinned.press(forDuration: 0.02, thenDragTo: pinned.withOffset(CGVector(dx: 0, dy: 300)), withVelocity: .slow, thenHoldForDuration: 0.1)
+        sleep(1)
+        XCTAssertGreaterThan(hero.frame.minY, top - 100, "Dragging down from the pinned strip scrolls back up")
+    }
+
+    func testScrollingOverPaymentsDoesNotOpenThem() {
+        let app = launch(["-seedLots"])
+        XCTAssertTrue(element("monthSpent", in: app).waitForExistence(timeout: 10))
+        sleep(1)
+        let hero = element("monthSpent", in: app)
+        // Thumb-speed drags that start on payment rows, up then down, some
+        // drifting sideways the way a thumb arcs.
+        for (dx, dy) in [(0.0, -220.0), (40.0, -200.0), (-35.0, 180.0), (30.0, -160.0), (0.0, 200.0)] {
+            let before = hero.frame.minY
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.45, dy: dy < 0 ? 0.75 : 0.45))
+            start.press(forDuration: 0.03, thenDragTo: start.withOffset(CGVector(dx: dx, dy: dy)), withVelocity: .slow, thenHoldForDuration: 0.05)
+            sleep(1)
+            XCTAssertFalse(app.buttons["saveButton"].exists, "Scrolling over a payment (\(dx), \(dy)) doesn't open it")
+            XCTAssertNotEqual(hero.frame.minY, before, "The page scrolled (\(dx), \(dy))")
+            if app.buttons["saveButton"].exists { app.buttons["Cancel"].tap() }
+        }
+    }
+
     func testScrubbingTheMonthMovesTheList() {
         let app = launch(["-seedDemo"])
         let strip = element("monthStrip", in: app)
@@ -388,7 +426,7 @@ final class TMEUITests: XCTestCase {
         // Drag from today's end of the strip back to its first days.
         let start = strip.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
         let end = strip.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.6))
-        start.press(forDuration: 0.1, thenDragTo: end)
+        start.press(forDuration: 0.4, thenDragTo: end)
         let scrubbed = strip.value as? String ?? ""
         XCTAssertNotEqual(today, scrubbed, "The marker moved to another day")
     }

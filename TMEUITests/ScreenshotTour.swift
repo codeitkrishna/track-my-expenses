@@ -118,7 +118,7 @@ final class ScreenshotTour: XCTestCase {
         let strip = element("monthStrip")
         let from = strip.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.6))
         let to = strip.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6))
-        from.press(forDuration: 0.1, thenDragTo: to)
+        from.press(forDuration: 0.4, thenDragTo: to)
         sleep(1)
         shot("04-scrubbed")
 

@@ -62,19 +62,29 @@ struct MonthStrip: View {
                     }
                 }
                 .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            let index = min(max(Int(value.location.x / slot), 0), days.count - 1)
-                            guard index != scrubIndex, days.indices.contains(index) else { return }
-                            scrubIndex = index
-                            onScrub(days[index].date)
-                        }
-                        .onEnded { _ in
-                            scrubIndex = nil
-                            onScrub(nil)
-                        }
-                )
+                // UIKit's own long press and tap, which give way to the page's
+                // scrolling: move within 0.15 s and the page scrolls; hold still
+                // to scrub; tap to jump to a day. (SwiftUI's gestures here made
+                // the scroll view wait, so drags starting on the strip stuck.)
+                .gesture(StripHold(
+                    onMove: { location in
+                        let index = min(max(Int(location.x / slot), 0), days.count - 1)
+                        guard index != scrubIndex, days.indices.contains(index) else { return }
+                        scrubIndex = index
+                        onScrub(days[index].date)
+                    },
+                    onEnd: {
+                        guard scrubIndex != nil else { return }
+                        scrubIndex = nil
+                        onScrub(nil)
+                    }
+                ))
+                .gesture(StripTap { location in
+                    let index = min(max(Int(location.x / slot), 0), days.count - 1)
+                    guard days.indices.contains(index) else { return }
+                    onScrub(days[index].date)
+                    onScrub(nil)
+                })
                 .overlay(alignment: .topLeading) {
                     DayTicks(days: days, slot: slot, focus: focusIndex)
                         .offset(y: dotBand + plotHeight + 6)
@@ -225,5 +235,40 @@ private struct DayTicks: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+/// Touch and hold, then slide: UIKit's long press, which fails as soon as
+/// the finger moves early, leaving the drag to the scroll view.
+private struct StripHold: UIGestureRecognizerRepresentable {
+    let onMove: (CGPoint) -> Void
+    let onEnd: () -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
+        let recognizer = UILongPressGestureRecognizer()
+        recognizer.minimumPressDuration = 0.15
+        recognizer.allowableMovement = 10
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {
+        switch recognizer.state {
+        case .began, .changed: onMove(context.converter.localLocation)
+        case .ended, .cancelled, .failed: onEnd()
+        default: break
+        }
+    }
+}
+
+/// A tap on the strip, at a point.
+private struct StripTap: UIGestureRecognizerRepresentable {
+    let action: (CGPoint) -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> UITapGestureRecognizer {
+        UITapGestureRecognizer()
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UITapGestureRecognizer, context: Context) {
+        if recognizer.state == .ended { action(context.converter.localLocation) }
     }
 }
