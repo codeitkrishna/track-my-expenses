@@ -4,13 +4,16 @@ import TMECore
 
 @MainActor
 enum Tagging {
-    /// Files the entry under `category`, remembers that choice for its
-    /// merchant, and files any other uncategorised entries from that merchant.
-    static func assign(_ category: LedgerCategory, to entry: LedgerEntry, in context: ModelContext) {
+    /// Files the entry under `category` and remembers that choice for its
+    /// merchant. Unless `alsoFileOthers` is false, the merchant's other
+    /// uncategorised entries are filed the same way.
+    static func assign(_ category: LedgerCategory, to entry: LedgerEntry, in context: ModelContext, alsoFileOthers: Bool = true) {
         entry.category = category
         if let merchant = entry.merchant {
             remember(category, for: merchant, in: context)
-            fillUncategorised(merchant: merchant, flow: entry.flow, with: category, in: context)
+            if alsoFileOthers {
+                fillUncategorised(merchant: merchant, flow: entry.flow, with: category, in: context)
+            }
         }
         try? context.save()
         // Filed some other way: take down its Dynamic Island prompt.

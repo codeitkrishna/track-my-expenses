@@ -13,6 +13,8 @@ struct TriageView: View {
 
     /// Skipped payments go to the back of the queue.
     @State private var skipped: [UUID] = []
+    /// The top card under a finger.
+    @State private var drag: CGSize = .zero
     @State private var filed = 0
     @State private var naming = false
 
@@ -26,15 +28,16 @@ struct TriageView: View {
                 if let current = queue.first {
                     ZStack(alignment: .top) {
                         ForEach(Array(queue.prefix(3).enumerated()), id: \.element.id) { index, entry in
-                            TriageCard(entry: entry, isBehind: index > 0)
+                            let isTop = index == 0
+                            TriageCard(entry: entry, isBehind: !isTop)
                                 .scaleEffect(1 - CGFloat(index) * 0.06, anchor: .top)
                                 .offset(y: CGFloat(index) * -12)
-                                .opacity(index == 0 ? 1 : 0.55 - Double(index) * 0.2)
+                                .offset(isTop ? drag : .zero)
+                                .rotationEffect(.degrees(isTop ? Double(drag.width) / 22 : 0), anchor: .bottom)
+                                .opacity(isTop ? 1 : 0.55 - Double(index) * 0.2)
                                 .zIndex(Double(-index))
-                                .transition(.asymmetric(
-                                    insertion: .opacity,
-                                    removal: .offset(y: -40).combined(with: .opacity).combined(with: .scale(scale: 0.96))
-                                ))
+                                .gesture(isTop ? skipDrag(current) : nil)
+                                .transition(.asymmetric(insertion: .opacity, removal: .fling))
                         }
                     }
                     .padding(.top, 36)
@@ -56,9 +59,7 @@ struct TriageView: View {
 
                     Spacer()
                     if queue.count > 1 {
-                        Button("Skip for now") {
-                            withAnimation(.snappy) { skipped.append(current.uuid) }
-                        }
+                        Button("Skip for now") { skip(current, toward: -1) }
                         .font(.subheadline)
                         .foregroundStyle(Theme.textSecondary)
                         .padding(.bottom, 12)
@@ -93,13 +94,40 @@ struct TriageView: View {
         .presentationBackground(Theme.canvas)
     }
 
+    /// Files just the card on top (not the receiver's other waiting
+    /// payments) and flings it away; the next one rises into place.
     private func file(_ entry: LedgerEntry, under category: LedgerCategory) {
-        withAnimation(.snappy(duration: 0.35)) {
-            Tagging.assign(category, to: entry, in: context)
+        withAnimation(.spring(duration: 0.45, bounce: 0.2)) {
+            Tagging.assign(category, to: entry, in: context, alsoFileOthers: false)
             skipped.removeAll { $0 == entry.uuid }
         }
         TagNotifications.registerCategories(in: context)
         filed += 1
+    }
+
+    /// Drag the top card aside to skip it.
+    private func skipDrag(_ entry: LedgerEntry) -> some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { drag = CGSize(width: $0.translation.width, height: $0.translation.height * 0.2) }
+            .onEnded { value in
+                if abs(value.translation.width) > 110 {
+                    skip(entry, toward: value.translation.width > 0 ? 1 : -1)
+                } else {
+                    withAnimation(.spring(duration: 0.35, bounce: 0.3)) { drag = .zero }
+                }
+            }
+    }
+
+    /// Sends the card off-screen, then to the back of the queue.
+    private func skip(_ entry: LedgerEntry, toward direction: CGFloat) {
+        withAnimation(.easeIn(duration: 0.2)) { drag = CGSize(width: direction * 520, height: 0) }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(200))
+            var instant = Transaction()
+            instant.disablesAnimations = true
+            withTransaction(instant) { drag = .zero }
+            withAnimation(.spring(duration: 0.4, bounce: 0.2)) { skipped.append(entry.uuid) }
+        }
     }
 }
 
@@ -156,5 +184,24 @@ private struct AllFiled: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("allFiled")
+    }
+}
+
+/// A filed card leaving: out to the side with a slight tilt, like a card
+/// tossed off the stack.
+private struct Fling: ViewModifier {
+    let progress: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .offset(x: -460 * progress, y: -24 * progress)
+            .rotationEffect(.degrees(-14 * Double(progress)), anchor: .bottom)
+            .opacity(1 - Double(progress) * 0.5)
+    }
+}
+
+private extension AnyTransition {
+    static var fling: AnyTransition {
+        .modifier(active: Fling(progress: 1), identity: Fling(progress: 0))
     }
 }

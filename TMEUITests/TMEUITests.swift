@@ -355,6 +355,30 @@ final class TMEUITests: XCTestCase {
         wait(for: [expectation(for: NSPredicate(format: "label CONTAINS '₹200'"), evaluatedWith: owed)], timeout: 5)
     }
 
+    func testQueueFilesOneCardAtATime() {
+        let app = launch()
+        // Two payments to the same person, both waiting for a category.
+        for amount in ["100", "250"] {
+            app.buttons["addButton"].tap()
+            enter(amount, in: app)
+            let receiver = app.textFields["receiverField"]
+            receiver.tap()
+            receiver.typeText("Prakhar\n")
+            app.buttons["saveButton"].tap()
+        }
+        let queue = app.buttons["tagQueueButton"]
+        XCTAssertTrue(queue.waitForExistence(timeout: 5))
+        queue.tap()
+        XCTAssertTrue(element("triageCard", in: app).waitForExistence(timeout: 5))
+        app.buttons["tag-Food"].tap()
+
+        // Only the top card was filed; the other one is next.
+        XCTAssertTrue(app.staticTexts["Last one"].waitForExistence(timeout: 5))
+        XCTAssertTrue(element("triageCard", in: app).exists)
+        app.buttons["tag-Transport"].tap()
+        XCTAssertTrue(element("allFiled", in: app).waitForExistence(timeout: 5) || !queue.exists)
+    }
+
     func testScrubbingTheMonthMovesTheList() {
         let app = launch(["-seedDemo"])
         let strip = element("monthStrip", in: app)
