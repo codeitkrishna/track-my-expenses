@@ -314,7 +314,7 @@ If you miss a banner, the payment waits for you.
 ### Change or delete a payment
 
 - Tap a payment to change it.
-- Swipe it to the left to delete it. Or press and hold it and tap **Delete**.
+- Swipe it to the left to delete it.
 
 ### Read your month
 
@@ -328,7 +328,7 @@ If you miss a banner, the payment waits for you.
 
 ### See your trends
 
-Tap the chart icon at the top left. Pick a period: **7D**, **30D**, **3M**, **6M**, **1Y**, or **Custom** for your own dates. TME shows how your spending compares with the period before, a chart you can touch to see each day, each category's trend, and who you paid most.
+Press and hold the button at the top left: round buttons fan out around your finger. Slide onto **Trends** and let go (or let go and tap it). A plain tap opens whichever of Trends, Friends, Goals and Categories you used last. Pick a period: **7D**, **30D**, **3M**, **6M**, **1Y**, or **Custom** for your own dates. TME shows how your spending compares with the period before, a chart you can touch to see each day, each category's trend, and who you paid most.
 
 <img src="docs/guide/trends.png" width="260" alt="Trends">
 
@@ -339,7 +339,7 @@ Tap the chart icon at the top left. Pick a period: **7D**, **30D**, **3M**, **6M
 3. Choose how to split it: **Equal**, **Amounts** or **%**. If none of it was for you, turn off the switch next to **You**.
 4. Tap **Done**, then **Save**.
 
-To see who owes you, tap the people icon at the top left (**Friends**). Tap a friend, and then:
+To see who owes you, hold the button at the top left and pick **Friends** from the fan. Tap a friend, and then:
 
 - tap **✓** next to a payment when they pay you back,
 - tap **Settle all** when they've paid you everything,
@@ -347,6 +347,27 @@ To see who owes you, tap the people icon at the top left (**Friends**). Tap a fr
 - tap **Share** to send them a picture of what they owe.
 
 <img src="docs/guide/split.png" width="260" alt="Splitting a payment equally"> <img src="docs/guide/friend.png" width="260" alt="What a friend owes you">
+
+### Save for goals
+
+Hold the button at the top left and pick **Goals** from the fan, then tap **+**. Give the goal a name, what it costs and, if you like, a photo and a date.
+
+- **Add** and **Take out** move money in and out of the goal. That money is set aside, so the main screen shows what's **free to spend**: your balance minus what's in goals.
+- The photo starts out blurred and sharpens as the goal fills.
+- The board shows when you'll have enough at your pace (your income minus your spending over the last 90 days, after keeping a month of spending free for bills). It says **Delayed** or **Early** against the date you chose, or against TME's first estimate. **Boarding** means you already have enough free.
+- Under **Fills itself**: round each payment up and keep the change, set aside a share of everything in one category, or, when a big sum comes in (₹10,000 or more), get asked in the Dynamic Island whether to set part of it aside.
+- **Measure payments in it** makes new payments say what they cost, like "That's 2 days of saving for Goa trip".
+- **Spend from it** (on a trip, say): new payments come out of the goal until you stop, without touching your free money. In a payment's banner, **Not from…** undoes it. When you add a payment yourself, tap the target under the amount to pick a goal.
+- **Finish** moves it to your shelf, and what's left goes back to free money.
+
+### Set limits on categories
+
+Go to **Settings → Categories**, tap a category, and type a limit **per day**, **per week** and/or **per month**. Leave a box empty for no limit.
+
+- The main screen lists your limits under the month's categories, with what you've spent so far. Ones you've gone over show in red.
+- When a payment takes a category over a limit, TME tells you, along with how much later that makes your goal: "Food is over this week's limit: ₹2,800 of ₹2,000 this week. Goa trip is 2 days later." The goal is the one you measure payments in, otherwise your first goal still saving.
+- Payments spent from a goal don't count toward limits.
+- For the full picture, hold the button at the top left and pick **Categories** (or tap **See all** next to Limits). Each category is a ring showing how much of its limit is used today, this week or this month (or its share of spending if it has no limit). Over-limit ones come first, in red. Tap one for its limits, the last 30 days and every payment in it.
 
 ### Your data
 

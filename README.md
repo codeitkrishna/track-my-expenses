@@ -9,6 +9,8 @@ A personal expense tracker for iPhone, built for people who won't type in every 
 - **Your month on one screen.** Touch and hold the strip of daily spending to scrub through the days, tap a category to see just that one, and file uncategorised payments in place or one card at a time. Tap a payment to edit it; swipe it left to delete it.
 - **Trends.** Spending over the last 7 days to a year, or any dates you pick: how it compares with the same stretch before, a chart to scrub, each category's trend, and who you paid most.
 - **Split with friends.** Split any payment equally, by amount or by percentage, with or without yourself. The **Friends** panel shows who owes you and for which payments. Mark a payment paid back or settle everything at once, add money you lent, and share a picture of what someone owes.
+- **Goals.** Set money aside for things you're saving for, and the main screen shows what's left free to spend. Each goal's photo starts blurred and sharpens as it fills. A departure board says when you'll get there at your pace, and flips to "Delayed" after a splurge. Goals can fill themselves (round-ups, a share of a category, part of each payday from the Dynamic Island), measure new payments in days of saving, and be spent from on a trip. Finished ones go on a shelf.
+- **Limits.** Give any category a daily, weekly or monthly limit. Go over and TME tells you how much later that makes your goal. The Categories page shows each one as a ring, with its payments.
 - **Private.** Everything stays on your iPhone. No accounts, no servers, no bank logins.
 
 Reads alerts from HDFC, SBI, ICICI, Axis and Kotak (UPI, cards, NEFT, refunds). Use **Settings → Test a bank SMS** to check yours.
