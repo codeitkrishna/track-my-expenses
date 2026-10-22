@@ -12,7 +12,7 @@ final class DataStore {
     var context: ModelContext { container.mainContext }
 
     init(inMemory: Bool = LaunchOptions.isUITesting) {
-        let schema = Schema([LedgerEntry.self, LedgerCategory.self, MerchantRule.self, Friend.self, SplitShare.self])
+        let schema = Schema([LedgerEntry.self, LedgerCategory.self, MerchantRule.self, Friend.self, SplitShare.self, Goal.self, GoalMove.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [configuration])

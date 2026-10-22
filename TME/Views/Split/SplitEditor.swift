@@ -100,9 +100,8 @@ struct SplitEditor: View {
                         .monospacedDigit()
                         .foregroundStyle(Theme.textSecondary)
                 }
-                Toggle("Include you", isOn: $draft.includesMe)
-                    .labelsHidden()
-                    .tint(Theme.income)
+                InstrumentSwitch(isOn: $draft.includesMe)
+                    .accessibilityLabel("Include you")
                     .accessibilityIdentifier("splitIncludesMe")
             }
             .padding(.vertical, 10)

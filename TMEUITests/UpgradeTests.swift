@@ -25,7 +25,7 @@ final class UpgradeTests: XCTestCase {
         app.buttons["splitDone"].tap()
         app.buttons["saveButton"].tap()
 
-        app.buttons["friendsButton"].tap()
+        app.openPanel("Friends")
         let friend = app.descendants(matching: .any)["friend-Prakhar"].firstMatch
         XCTAssertTrue(friend.waitForExistence(timeout: 5), "The split was saved in the upgraded store")
     }

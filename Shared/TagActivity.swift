@@ -16,6 +16,9 @@ struct TagActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         /// The category name once the payment has been filed.
         var filedUnder: String?
+        /// "Not from Goa" was tapped: the payment no longer comes out of
+        /// `fromGoal`.
+        var leftGoal = false
     }
 
     let entryID: String
@@ -27,6 +30,10 @@ struct TagActivityAttributes: ActivityAttributes {
     let options: [Option]
     /// Other payments still waiting for a category.
     let waiting: Int
+    /// The goal this payment came out of (it's being spent from).
+    var fromGoal: String? = nil
+    /// "That's 2 days of saving for Goa", or "From Goa · ₹12,400 left".
+    var goalLine: String? = nil
 
     var headline: String {
         switch (isIncome, merchant) {
@@ -62,6 +69,29 @@ struct TagEntryIntent: LiveActivityIntent {
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
         await TagActivities.file(entryID: entryID, categoryID: categoryID)
+        #endif
+        return .result()
+    }
+}
+
+/// "Not from Goa" on the prompt: the payment stops coming out of the goal
+/// it was spent from. Runs inside the app's process.
+struct NotFromGoalIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Not From Goal"
+    static let isDiscoverable = false
+
+    @Parameter(title: "Payment")
+    var entryID: String
+
+    init() {}
+
+    init(entryID: String) {
+        self.entryID = entryID
+    }
+
+    func perform() async throws -> some IntentResult {
+        #if !WIDGET_EXTENSION
+        await TagActivities.notFromGoal(entryID: entryID)
         #endif
         return .result()
     }

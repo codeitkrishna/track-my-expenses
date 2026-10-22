@@ -35,6 +35,7 @@ struct EntryComposer: View {
     @Query(sort: \LedgerCategory.sortOrder) private var categories: [LedgerCategory]
     /// Every payment so far, for suggesting who this one went to.
     @Query(sort: \LedgerEntry.date, order: .reverse) private var pastEntries: [LedgerEntry]
+    @Query(filter: #Predicate<Goal> { $0.finishedAt == nil }, sort: \Goal.createdAt) private var openGoals: [Goal]
 
     /// The text fields; while one is in use the system keyboard replaces the keypad.
     enum Field { case receiver, note }
@@ -49,6 +50,10 @@ struct EntryComposer: View {
     @State private var date: Date
     /// Friends sharing this payment, and how.
     @State private var split: SplitDraft
+    /// The goal this payment comes out of.
+    @State private var goal: Goal?
+    /// A new payment starts out from the goal being spent from, once.
+    @State private var pickedDefaultGoal = false
     @State private var splitting = false
     @State private var choosingWhen = false
     @State private var naming = false
@@ -83,6 +88,8 @@ struct EntryComposer: View {
             _receiver = State(initialValue: entry.displayMerchant ?? "")
             _date = State(initialValue: entry.date)
             _split = State(initialValue: SplitDraft(entry: entry))
+            _goal = State(initialValue: entry.goal)
+            _pickedDefaultGoal = State(initialValue: true)
         }
     }
 
@@ -141,20 +148,28 @@ struct EntryComposer: View {
                 if editing != nil {
                     ToolbarItem(placement: .destructiveAction) {
                         Button("Delete", systemImage: "trash", role: .destructive) { confirmingDelete = true }
-                            .confirmationDialog("Delete this payment?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-                                Button("Delete", role: .destructive) {
+                            .confirmCard(
+                                isPresented: $confirmingDelete,
+                                title: "Delete this payment?",
+                                actions: [PopupAction(title: "Delete", role: .destructive, identifier: "confirmDeletePayment") {
                                     if let editing {
                                         context.delete(editing)
                                         try? context.save()
                                     }
                                     dismiss()
-                                }
-                            }
+                                }]
+                            )
                     }
                 }
             }
             .onChange(of: flow) {
                 if category?.flow != flow { category = nil }
+                if flow == .income { goal = nil }
+            }
+            .onAppear {
+                guard !pickedDefaultGoal else { return }
+                pickedDefaultGoal = true
+                if flow == .expense { goal = Goals.spendingGoal(in: context) }
             }
             .onChange(of: focus) {
                 if focus != .note { writingNote = false }
@@ -201,6 +216,9 @@ struct EntryComposer: View {
                 .buttonStyle(PressableStyle())
                 .accessibilityLabel("The bank's message")
                 .accessibilityIdentifier("smsButton")
+            }
+            if flow == .expense, !openGoals.isEmpty || goal != nil {
+                goalMenu
             }
         }
         .font(.body)
@@ -291,16 +309,39 @@ struct EntryComposer: View {
             .accessibilityLabel("When")
             .accessibilityValue(date.formatted(date: .long, time: .shortened))
             .accessibilityIdentifier("whenButton")
-            .popover(isPresented: $choosingWhen) {
-                DatePicker("When", selection: $date, in: ...Date.now.addingTimeInterval(86_400))
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .frame(width: 320)
-                    .padding(12)
-                    .presentationCompactAdaptation(.popover)
-            }
+            .dateCard(isPresented: $choosingWhen, selection: $date, in: Date.distantPast...Date.now.addingTimeInterval(86_400), showsTime: true)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Which goal it's spent from, finishing the sentence: "to Swiggy
+    /// from Goa trip". Just a target until one is picked.
+    private var goalMenu: some View {
+        ChoiceMenu(title: "Spent from") {
+            [ChoiceSection(rows: [ChoiceRow(title: "No goal", symbol: "minus.circle", isSelected: goal == nil, identifier: "goal-none") { goal = nil }]
+                + openGoals.map { option in
+                    ChoiceRow(title: option.name, symbol: "target", isSelected: goal?.uuid == option.uuid, identifier: "goalChoice-\(option.name)") { goal = option }
+                })]
+        } label: {
+            if let goal {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text("from")
+                        .foregroundStyle(Theme.textTertiary)
+                    Text(goal.name.count > 16 ? goal.name.prefix(15) + "…" : goal.name)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                .fixedSize()
+            } else {
+                Image(systemName: "target")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textTertiary)
+                    .padding(6)
+                    .contentShape(Rectangle())
+            }
+        }
+        .accessibilityLabel(goal.map { "Spent from \($0.name)" } ?? "Spent from a goal")
+        .accessibilityIdentifier("goalButton")
     }
 
     /// "Split" or "Split · 2".
@@ -381,6 +422,8 @@ struct EntryComposer: View {
             if name != (editing.displayMerchant ?? "") {
                 editing.merchant = name.isEmpty ? nil : name
             }
+            editing.goal = flow == .expense ? goal : nil
+            let sameCategory = category != nil && category?.uuid == editing.category?.uuid
             if let category, category.uuid != editing.category?.uuid {
                 Tagging.assign(category, to: editing, in: context)
             } else if category == nil {
@@ -389,9 +432,16 @@ struct EntryComposer: View {
             if !split.isEmpty || !editing.shares.isEmpty {
                 Splits.apply(split, to: editing, in: context)
             }
+            GoalRules.sync(editing, in: context)
+            // A new amount under the same category can still go over a limit.
+            if sameCategory {
+                try? context.save()
+                LimitAlerts.check(editing, in: context)
+            }
         } else {
             let entry = LedgerEntry(amountPaise: paise, flow: flow, date: date, note: trimmed, merchant: name.isEmpty ? nil : name)
             context.insert(entry)
+            entry.goal = flow == .expense ? goal : nil
             if let category {
                 // With a receiver this also files their waiting payments, as tagging does elsewhere.
                 Tagging.assign(category, to: entry, in: context)
@@ -399,6 +449,7 @@ struct EntryComposer: View {
             if !split.isEmpty {
                 Splits.apply(split, to: entry, in: context)
             }
+            GoalRules.sync(entry, in: context)
         }
         // Next time this receiver shows up, by hand or by SMS, it's filed the same way.
         if !name.isEmpty, let category {
@@ -452,7 +503,7 @@ private struct FlowSwitch: View {
 }
 
 /// The typed amount, big and light, with digits that roll in.
-private struct AmountDisplay: View {
+struct AmountDisplay: View {
     let digits: String
     let flow: Flow
 
@@ -489,7 +540,7 @@ private struct AmountDisplay: View {
 }
 
 /// Plain light digits; a soft disc lights up under the finger.
-private struct Keypad: View {
+struct Keypad: View {
     @Binding var digits: String
     @State private var taps = 0
 
@@ -563,24 +614,23 @@ private struct SMSDetails: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    if let merchant = entry.displayMerchant { LabeledContent("Merchant", value: merchant) }
-                    if let tail = entry.accountTail { LabeledContent("Account", value: "••\(tail)") }
-                    if let reference = entry.reference { LabeledContent("Reference", value: reference) }
+            PanelPage {
+                PanelSection {
+                    if let merchant = entry.displayMerchant { PanelValueRow(title: "Merchant", value: merchant) }
+                    if let tail = entry.accountTail { PanelValueRow(title: "Account", value: "••\(tail)") }
+                    if let reference = entry.reference { PanelValueRow(title: "Reference", value: reference) }
                 }
-                .listRowBackground(Theme.surface)
                 if let raw = entry.rawMessage {
-                    Section("Message") {
+                    PanelSection("Message") {
                         Text(raw)
                             .font(.callout)
                             .foregroundStyle(Theme.textSecondary)
                             .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
                     }
-                    .listRowBackground(Theme.surface)
                 }
             }
-            .matteList()
             .navigationTitle("From your bank")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -115,20 +115,22 @@ private struct NewCategoryAlert: ViewModifier {
     @State private var name = ""
 
     func body(content: Content) -> some View {
-        content.alert(flow == .expense ? "New expense category" : "New income category", isPresented: $isPresented) {
-            TextField("Name", text: $name)
-                .accessibilityIdentifier("newCategoryName")
-            Button("Cancel", role: .cancel) { name = "" }
-            Button("Create") {
-                if let category = Tagging.findOrCreateCategory(named: name, flow: flow, in: context) {
-                    try? context.save()
-                    TagNotifications.registerCategories(in: context)
-                    onCreate(category)
-                }
-                name = ""
+        content.promptCard(
+            isPresented: $isPresented,
+            title: flow == .expense ? "New expense category" : "New income category",
+            message: "Change its icon and colour any time in Settings → Categories.",
+            text: $name,
+            placeholder: "Name",
+            confirm: "Create",
+            fieldIdentifier: "newCategoryName",
+            onCancel: { name = "" }
+        ) {
+            if let category = Tagging.findOrCreateCategory(named: name, flow: flow, in: context) {
+                try? context.save()
+                TagNotifications.registerCategories(in: context)
+                onCreate(category)
             }
-        } message: {
-            Text("Change its icon and colour any time in Settings → Categories.")
+            name = ""
         }
     }
 }

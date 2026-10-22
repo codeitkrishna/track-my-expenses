@@ -10,6 +10,7 @@ struct LedgerView: View {
     @Environment(AppRouter.self) private var router
     @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
     @Query(sort: \LedgerCategory.sortOrder) private var categories: [LedgerCategory]
+    @Query(filter: #Predicate<Goal> { $0.finishedAt == nil }) private var openGoals: [Goal]
 
     @State private var month = LedgerView.monthStart(of: .now)
     /// The category being looked at, by `LedgerEntry.categoryKey`.
@@ -19,9 +20,12 @@ struct LedgerView: View {
     @State private var scroll = LedgerScroll()
     @State private var position = ScrollPosition(edge: .top)
     @State private var sheet: LedgerSheet?
-    @State private var dockExpanded = false
     @State private var showingTrends = false
     @State private var showingFriends = false
+    @State private var showingGoals = false
+    @State private var showingCategories = false
+    /// The panel the top-left button opens on a tap: the last one used.
+    @AppStorage("lastPanel") private var lastPanel = Panel.goals
     @State private var filedCount = 0
     /// The payment waiting for a yes before it's deleted.
     @State private var deleting: LedgerEntry?
@@ -41,6 +45,9 @@ struct LedgerView: View {
         let isCurrent = interval.contains(.now)
         let selected = filter.flatMap { key in stats.byCategory.first { $0.id == key } }
         let toFile = entries.filter { $0.category == nil }.count
+        let limits = isCurrent
+            ? Limits.statuses(categories: categories, entries: entries).filter { filter == nil || $0.categoryID.uuidString == filter }
+            : []
 
         NavigationStack {
             ScrollView {
@@ -50,7 +57,9 @@ struct LedgerView: View {
                         isCurrent: isCurrent,
                         balance: balance.starting?.balance(for: interval, with: entries),
                         canSetBalance: balance.starting == nil && isCurrent,
-                        editBalance: { sheet = .balance }
+                        setAside: isCurrent ? Goals.setAside(openGoals) : 0,
+                        editBalance: { sheet = .balance },
+                        showGoals: { showingGoals = true }
                     )
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
@@ -91,6 +100,14 @@ struct LedgerView: View {
                         }
                     }
 
+                    if !limits.isEmpty {
+                        LimitsSection(statuses: limits, showAll: { open(.categories) }) { over in
+                            Limits.goalCost(overPaise: over, goals: openGoals.sorted { $0.createdAt < $1.createdAt }, entries: entries)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 22)
+                    }
+
                     ForEach(days) { day in
                         DayHeader(day: day)
                             .onGeometryChange(for: CGFloat.self) { proxy in
@@ -109,25 +126,16 @@ struct LedgerView: View {
                             )
                             .matchedTransitionSource(id: entry.uuid, in: zoom)
                             .swipeToDelete { deleting = entry }
-                            .contextMenu {
-                                Button("Edit", systemImage: "pencil") { sheet = .edit(entry) }
-                                Button("Delete", systemImage: "trash", role: .destructive) { deleting = entry }
+                            .accessibilityActions {
+                                Button("Edit") { sheet = .edit(entry) }
                             }
                             // Asked next to the payment itself, not at the top of the page.
-                            .confirmationDialog(
-                                "Delete \(Rupees.format(paise: entry.amountPaise)) · \(entry.title)?",
+                            .confirmCard(
                                 isPresented: Binding(get: { deleting?.uuid == entry.uuid }, set: { if !$0 { deleting = nil } }),
-                                titleVisibility: .visible
-                            ) {
-                                Button("Delete", role: .destructive) {
-                                    delete(entry)
-                                    deleting = nil
-                                }
-                            } message: {
-                                if !entry.shares.isEmpty {
-                                    Text("It's also taken off \(Self.names(of: entry))'s account.")
-                                }
-                            }
+                                title: "Delete \(Rupees.format(paise: entry.amountPaise)) · \(entry.title)?",
+                                message: entry.shares.isEmpty ? nil : "It's also taken off \(Self.names(of: entry))'s account.",
+                                actions: [PopupAction(title: "Delete", role: .destructive) { delete(entry) }]
+                            )
                         }
                     }
 
@@ -162,33 +170,31 @@ struct LedgerView: View {
                 if day != scroll.focus { scroll.focus = day }
             }
             .background(Theme.canvas)
-            .overlay {
-                if dockExpanded {
-                    Color.black.opacity(0.6)
-                        .ignoresSafeArea()
-                        .onTapGesture { dockExpanded = false }
-                        .transition(.opacity)
-                }
-            }
             .overlay(alignment: .bottom) {
                 Dock(
                     toFile: toFile,
                     zoom: zoom,
-                    isExpanded: $dockExpanded,
                     onTriage: { sheet = .triage },
                     onAdd: { sheet = .add($0) },
                     onNewCategory: { sheet = .newCategory }
                 )
             }
-            .animation(.easeOut(duration: 0.2), value: dockExpanded)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItemGroup(placement: .topBarLeading) {
-                    Button("Trends", systemImage: "chart.line.uptrend.xyaxis") { showingTrends = true }
-                        .accessibilityIdentifier("trendsButton")
-                    Button("Friends", systemImage: "person.2") { showingFriends = true }
-                        .accessibilityIdentifier("friendsButton")
+                ToolbarItem(placement: .topBarLeading) {
+                    // Tap for the last panel used; hold for all three as a fan.
+                    HoldFanButton(title: lastPanel.title, symbol: lastPanel.symbol) {
+                        open(lastPanel)
+                    } items: {
+                        Panel.allCases.map { panel in
+                            RadialItem(id: panel.rawValue, title: panel.title, symbol: panel.symbol, tint: panel.tint) { open(panel) }
+                        }
+                    }
+                    .accessibilityHint("Touch and hold for Trends, Friends, Goals and Categories")
+                    .accessibilityIdentifier("panelsButton")
                 }
+                // Its own round glass, not the bar's capsule.
+                .sharedBackgroundVisibility(.hidden)
                 ToolbarItem(placement: .principal) {
                     MonthMenu(month: $month, months: months)
                 }
@@ -202,6 +208,12 @@ struct LedgerView: View {
             }
             .navigationDestination(isPresented: $showingFriends) {
                 FriendsView()
+            }
+            .navigationDestination(isPresented: $showingGoals) {
+                GoalsView()
+            }
+            .navigationDestination(isPresented: $showingCategories) {
+                CategoryTrackerView()
             }
             .sheet(item: $sheet) { sheet in
                 switch sheet {
@@ -230,6 +242,12 @@ struct LedgerView: View {
                 position.scrollTo(edge: .top)
             }
             .onChange(of: filter) { scroll.focus = nil }
+            .onChange(of: router.showGoals, initial: true) { _, show in
+                guard show else { return }
+                sheet = nil
+                showingGoals = true
+                router.showGoals = false
+            }
             .onChange(of: router.entryToTag, initial: true) { _, id in
                 guard let id else { return }
                 if let entry = entries.first(where: { $0.uuid == id }) { sheet = .edit(entry) }
@@ -239,6 +257,16 @@ struct LedgerView: View {
     }
 
     // MARK: Actions
+
+    private func open(_ panel: Panel) {
+        lastPanel = panel
+        switch panel {
+        case .trends: showingTrends = true
+        case .friends: showingFriends = true
+        case .goals: showingGoals = true
+        case .categories: showingCategories = true
+        }
+    }
 
     private func tap(_ entry: LedgerEntry) {
         if entry.category == nil {
@@ -313,6 +341,40 @@ struct LedgerView: View {
               let oldest = entries.last, oldest.date < month
         else { return nil }
         return previous
+    }
+}
+
+/// What the top-left button opens.
+enum Panel: String, CaseIterable, Identifiable {
+    case trends, friends, goals, categories
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .trends: "Trends"
+        case .friends: "Friends"
+        case .goals: "Goals"
+        case .categories: "Categories"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .trends: "chart.line.uptrend.xyaxis"
+        case .friends: "person.2"
+        case .goals: "target"
+        case .categories: "chart.pie"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .trends: Palette.color(slot: 0)
+        case .friends: Palette.color(slot: 1)
+        case .goals: Theme.income
+        case .categories: Palette.color(slot: 6).mix(with: .white, by: 0.25)
+        }
     }
 }
 
@@ -405,32 +467,55 @@ private struct Sticky: ViewModifier {
 }
 
 /// Your balance (or the month's spending, before a balance is set), and
-/// the month's in, out and net under it.
+/// the month's in, out and net under it. With money set aside for goals,
+/// what's free to spend leads and the balance moves under it.
 private struct Hero: View {
     let stats: MonthStats
     let isCurrent: Bool
     /// Nil when no starting balance covers this month.
     let balance: Int?
     let canSetBalance: Bool
+    /// Kept for goals; only counted for the current month.
+    let setAside: Int
     let editBalance: () -> Void
+    let showGoals: () -> Void
 
     var body: some View {
         let net = stats.incomePaise - stats.spentPaise
         let monthName = stats.month.formatted(.dateTime.month(.wide))
         VStack(alignment: .leading, spacing: 24) {
             if let balance {
-                Button(action: editBalance) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        MonoLabel(isCurrent ? "Balance" : "Balance at the end of \(monthName)")
-                        HeroAmount(paise: balance)
+                VStack(alignment: .leading, spacing: 6) {
+                    Button(action: editBalance) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            MonoLabel(isCurrent ? (setAside > 0 ? "Free to spend" : "Balance") : "Balance at the end of \(monthName)")
+                            HeroAmount(paise: balance - setAside)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
+                    .buttonStyle(PressableStyle())
+                    .accessibilityElement(children: .combine)
+                    .accessibilityHint("Change your starting balance")
+                    .accessibilityIdentifier("balanceValue")
+                    if setAside > 0 {
+                        Button(action: showGoals) {
+                            HStack(spacing: 5) {
+                                Text("\(Rupees.format(paise: balance)) balance · \(Rupees.format(paise: setAside)) in goals")
+                                    .monospacedDigit()
+                                    .contentTransition(.numericText(value: Double(setAside)))
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2.weight(.bold))
+                            }
+                            .font(.footnote)
+                            .foregroundStyle(Theme.textSecondary)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(PressableStyle())
+                        .accessibilityHint("Opens your goals")
+                        .accessibilityIdentifier("goalsLine")
+                    }
                 }
-                .buttonStyle(PressableStyle())
-                .accessibilityElement(children: .combine)
-                .accessibilityHint("Change your starting balance")
-                .accessibilityIdentifier("balanceValue")
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     MonoLabel("Spent in \(monthName)")
@@ -497,12 +582,10 @@ private struct MonthMenu: View {
     let months: [Date]
 
     var body: some View {
-        Menu {
-            Picker("Month", selection: $month) {
-                ForEach(months, id: \.self) { month in
-                    Text(month.formatted(.dateTime.month(.wide).year())).tag(month)
-                }
-            }
+        ChoiceMenu {
+            [ChoiceSection(rows: months.map { option in
+                ChoiceRow(title: option.formatted(.dateTime.month(.wide).year()), isSelected: option == month) { month = option }
+            })]
         } label: {
             HStack(spacing: 5) {
                 Text(month.formatted(.dateTime.month(.wide).year()))

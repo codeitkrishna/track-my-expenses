@@ -9,6 +9,7 @@ enum Tagging {
     /// uncategorised entries are filed the same way.
     static func assign(_ category: LedgerCategory, to entry: LedgerEntry, in context: ModelContext, alsoFileOthers: Bool = true) {
         entry.category = category
+        GoalRules.sync(entry, in: context)
         if let merchant = entry.merchant {
             remember(category, for: merchant, in: context)
             if alsoFileOthers {
@@ -16,6 +17,7 @@ enum Tagging {
             }
         }
         try? context.save()
+        LimitAlerts.check(entry, in: context)
         // Filed some other way: take down its Dynamic Island prompt.
         let entryID = entry.uuid.uuidString
         let name = category.name
@@ -113,6 +115,7 @@ enum Tagging {
         let descriptor = FetchDescriptor<LedgerEntry>(predicate: #Predicate { $0.category == nil && $0.flowRaw == flowRaw })
         for entry in (try? context.fetch(descriptor)) ?? [] where entry.merchant.map(MerchantKey.make) == key {
             entry.category = category
+            GoalRules.sync(entry, in: context)
         }
     }
 }

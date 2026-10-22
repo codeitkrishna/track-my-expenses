@@ -21,6 +21,9 @@ struct TMEApp: App {
                     // tmetracker://entry/<id> from the Dynamic Island prompt.
                     if url.host() == "entry", let id = UUID(uuidString: url.lastPathComponent) {
                         AppRouter.shared.entryToTag = id
+                    } else if url.host() == "goals" {
+                        // tmetracker://goals from the payday prompt.
+                        AppRouter.shared.showGoals = true
                     }
                 }
         }
@@ -35,4 +38,5 @@ final class AppRouter {
     static let shared = AppRouter()
 
     var entryToTag: UUID?
+    var showGoals = false
 }

@@ -14,8 +14,12 @@ enum TagPrompt {
         case .needsCategory(let id):
             PromptLog.add("\(describe(id, in: context)): needs a category.")
             await ask(entryID: id, in: context)
+            // The island is busy asking for the category, so this one's a banner.
+            await PaydayPrompt.offer(entryID: id, inIsland: false, in: context)
         case .autoTagged(let id):
             PromptLog.add("\(describe(id, in: context)): known merchant, filed automatically.")
+            // Payday: the island offers to feed your goals instead of a quiet banner.
+            if await PaydayPrompt.offer(entryID: id, in: context) { return }
             await TagNotifications.announceFiled(entryID: id, in: context)
         case .duplicate:
             PromptLog.add("The same SMS arrived again; it was already logged.")
@@ -84,7 +88,9 @@ enum TagActivities {
             isIncome: entry.flow == .income,
             merchant: entry.displayMerchant,
             options: Array(options),
-            waiting: max(0, uncategorised - 1)
+            waiting: max(0, uncategorised - 1),
+            fromGoal: entry.goal?.name,
+            goalLine: Yardstick.line(for: entry, in: context)
         )
         let content = ActivityContent(
             state: TagActivityAttributes.ContentState(filedUnder: nil),
@@ -132,16 +138,44 @@ enum TagActivities {
         TagNotifications.registerCategories(in: context)
     }
 
+    /// "Not from Goa" was tapped: the payment stays, but no longer comes
+    /// out of the goal.
+    static func notFromGoal(entryID: String) async {
+        let context = DataStore.shared.context
+        guard let id = UUID(uuidString: entryID) else { return }
+        var descriptor = FetchDescriptor<LedgerEntry>(predicate: #Predicate { $0.uuid == id })
+        descriptor.fetchLimit = 1
+        guard let entry = try? context.fetch(descriptor).first else { return }
+        let name = entry.goal?.name ?? "the goal"
+        entry.goal = nil
+        GoalRules.sync(entry, in: context)
+        try? context.save()
+        PromptLog.add("No longer spent from \(name), from the Dynamic Island.")
+        for activity in Activity<TagActivityAttributes>.activities where activity.attributes.entryID == entryID {
+            var state = activity.content.state
+            state.leftGoal = true
+            await activity.update(ActivityContent(state: state, staleDate: activity.content.staleDate))
+        }
+    }
+
     /// Shows "Filed under Food" for a moment, then removes the prompt.
     static func markFiled(entryID: String, as categoryName: String) async {
         for activity in Activity<TagActivityAttributes>.activities where activity.attributes.entryID == entryID {
-            let content = ActivityContent(state: TagActivityAttributes.ContentState(filedUnder: categoryName), staleDate: nil)
+            var state = activity.content.state
+            state.filedUnder = categoryName
+            let content = ActivityContent(state: state, staleDate: nil)
             await activity.end(content, dismissalPolicy: .after(.now.addingTimeInterval(5)))
         }
     }
 
+    /// Takes down every prompt, payday ones too: the island asks one
+    /// thing at a time. Payments stay under "Needs a category" and paydays
+    /// wait in Goals.
     static func endAll() async {
         for activity in Activity<TagActivityAttributes>.activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        for activity in Activity<PaydayActivityAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
     }

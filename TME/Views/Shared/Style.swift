@@ -1,14 +1,6 @@
 import SwiftUI
 import TMECore
 
-extension View {
-    /// A system list on the matte canvas.
-    func matteList() -> some View {
-        scrollContentBackground(.hidden)
-            .background(Theme.canvas)
-    }
-}
-
 /// Small spaced capitals in a monospaced face, like the labels on an
 /// instrument panel.
 struct MonoLabel: View {

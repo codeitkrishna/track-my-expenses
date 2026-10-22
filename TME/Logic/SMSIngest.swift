@@ -33,6 +33,11 @@ enum SMSIngest {
         context.insert(entry)
         let remembered = sms.counterparty.flatMap { Tagging.rememberedCategory(for: $0, flow: flow, in: context) }
         entry.category = remembered
+        if flow == .expense {
+            // On a trip (or whatever's being spent from), it comes out of that goal.
+            entry.goal = Goals.spendingGoal(at: receivedAt, in: context)
+        }
+        GoalRules.sync(entry, in: context)
         try context.save()
         return remembered == nil ? .needsCategory(entry.uuid) : .autoTagged(entry.uuid)
     }

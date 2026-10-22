@@ -13,99 +13,75 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
+            PanelPage {
+                PanelSection(footer: balance.starting != nil ? Text("Your balance is this amount, plus income and minus spending logged since.") : nil) {
                     Button { editingBalance = true } label: {
-                        HStack {
-                            Label {
-                                Text("Starting balance")
-                            } icon: {
-                                Image(systemName: "indianrupeesign.circle")
-                            }
-                            Spacer()
+                        PanelRow("Starting balance", symbol: "indianrupeesign.circle") {
                             Text(balanceSummary)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Theme.textSecondary)
                         }
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(RowPressStyle())
                     NavigationLink {
                         CategoriesView()
                     } label: {
-                        Label("Categories", systemImage: "square.grid.2x2")
+                        PanelRow("Categories", symbol: "square.grid.2x2") { RowChevron() }
                     }
-                } footer: {
-                    if balance.starting != nil {
-                        Text("Your balance is this amount, plus income and minus spending logged since.")
-                    }
+                    .buttonStyle(RowPressStyle())
                 }
-                .listRowBackground(Theme.surface)
 
-                Section {
+                PanelSection("Automation") {
                     NavigationLink {
                         SMSSetupView()
                     } label: {
-                        Label("Auto-log bank SMS", systemImage: "message.badge")
+                        PanelRow("Auto-log bank SMS", symbol: "message.badge") { RowChevron() }
                     }
+                    .buttonStyle(RowPressStyle())
                     NavigationLink {
                         SMSTesterView()
                     } label: {
-                        Label("Test a bank SMS", systemImage: "text.magnifyingglass")
+                        PanelRow("Test a bank SMS", symbol: "text.magnifyingglass") { RowChevron() }
                     }
+                    .buttonStyle(RowPressStyle())
                     NavigationLink {
                         FloatingButtonSetupView()
                     } label: {
-                        Label("Floating quick-add button", systemImage: "circle.circle")
+                        PanelRow("Floating quick-add button", symbol: "circle.circle") { RowChevron() }
                     }
-                } header: {
-                    Text("Automation")
+                    .buttonStyle(RowPressStyle())
                 }
-                .listRowBackground(Theme.surface)
 
-                Section {
+                PanelSection(
+                    "Category prompts",
+                    footer: Text("New payments pop up at the top of the screen with category buttons; when iOS doesn't allow that, you get a notification. Payments from merchants TME already knows are filed for you, with a quiet notification.")
+                ) {
                     NotificationStatusRow()
-                    Toggle(isOn: $askInDynamicIsland) {
-                        Label {
-                            Text("Ask in the Dynamic Island")
-                        } icon: {
-                            Image(systemName: "capsule.portrait")
-                        }
+                    PanelRow("Ask in the Dynamic Island", symbol: "capsule.portrait") {
+                        InstrumentSwitch(isOn: $askInDynamicIsland)
+                            .accessibilityLabel("Ask in the Dynamic Island")
                     }
-                    Toggle(isOn: $announceAutoFiled) {
-                        Label {
-                            Text("Tell me about automatic filing")
-                        } icon: {
-                            Image(systemName: "checkmark.bubble")
-                        }
+                    PanelRow("Tell me about automatic filing", symbol: "checkmark.bubble") {
+                        InstrumentSwitch(isOn: $announceAutoFiled)
+                            .accessibilityLabel("Tell me about automatic filing")
                     }
                     NavigationLink {
                         PromptHistoryView()
                     } label: {
-                        Label("Prompt history", systemImage: "clock.arrow.circlepath")
+                        PanelRow("Prompt history", symbol: "clock.arrow.circlepath") { RowChevron() }
                     }
-                } header: {
-                    Text("Category prompts")
-                } footer: {
-                    Text("New payments pop up at the top of the screen with category buttons; when iOS doesn't allow that, you get a notification. Payments from merchants TME already knows are filed for you, with a quiet notification.")
+                    .buttonStyle(RowPressStyle())
                 }
-                .listRowBackground(Theme.surface)
 
-                Section {
+                PanelSection("Your data", footer: Text("Everything stays on this iPhone. It's included in your normal iPhone backups.")) {
                     ShareLink(
                         item: CSVFile(text: CSVExport.csv(for: entries)),
                         preview: SharePreview("TME export")
                     ) {
-                        Label("Export as CSV", systemImage: "square.and.arrow.up")
+                        PanelRow("Export as CSV", symbol: "square.and.arrow.up") { RowChevron() }
                     }
-                } header: {
-                    Text("Your data")
-                } footer: {
-                    Text("Everything stays on this iPhone. It's included in your normal iPhone backups.")
+                    .buttonStyle(RowPressStyle())
                 }
-                .listRowBackground(Theme.surface)
             }
-            .matteList()
-            .toggleStyle(SwitchToggleStyle(tint: Theme.income))
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -132,9 +108,7 @@ private struct NotificationStatusRow: View {
     @State private var status: UNAuthorizationStatus = .notDetermined
 
     var body: some View {
-        HStack {
-            Label(statusText, systemImage: status == .authorized ? "bell.badge" : "bell.slash")
-            Spacer()
+        PanelRow(statusText, symbol: status == .authorized ? "bell.badge" : "bell.slash") {
             switch status {
             case .notDetermined:
                 Button("Turn on") {
@@ -143,10 +117,14 @@ private struct NotificationStatusRow: View {
                         await refresh()
                     }
                 }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.income)
             case .denied:
                 Button("Open Settings") {
                     if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
                 }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.income)
             default:
                 EmptyView()
             }
@@ -172,28 +150,41 @@ struct PromptHistoryView: View {
     @State private var events: [PromptLog.Event] = []
 
     var body: some View {
-        List {
-            ForEach(events.reversed()) { event in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(event.text)
-                        .font(.callout)
-                    Text(event.date.formatted(date: .abbreviated, time: .standard))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .accessibilityElement(children: .combine)
-            }
-        }
-        .overlay {
+        PanelPage {
             if events.isEmpty {
-                ContentUnavailableView(
-                    "Nothing yet",
-                    systemImage: "clock",
-                    description: Text("Each payment your SMS automation sends to TME shows up here, with what TME did about it.")
-                )
+                VStack(spacing: 10) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundStyle(Theme.textTertiary)
+                    Text("Nothing yet")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Text("Each payment your SMS automation sends to TME shows up here, with what TME did about it.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textTertiary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 120)
+            } else {
+                PanelSection {
+                    ForEach(events.reversed()) { event in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(event.text)
+                                .font(.callout)
+                                .foregroundStyle(.white)
+                            Text(event.date.formatted(date: .abbreviated, time: .standard))
+                                .font(.caption)
+                                .foregroundStyle(Theme.textTertiary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
             }
         }
-        .matteList()
         .navigationTitle("Prompt history")
         .toolbar {
             if !events.isEmpty {
@@ -204,6 +195,5 @@ struct PromptHistoryView: View {
             }
         }
         .task { events = PromptLog.load() }
-        .refreshable { events = PromptLog.load() }
     }
 }

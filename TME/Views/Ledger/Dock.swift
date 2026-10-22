@@ -2,28 +2,18 @@ import SwiftUI
 
 /// The controls floating over the ledger: payments still waiting for a
 /// category on the left, the add button on the right. Hold the add button
-/// and it opens into expense, income and new category.
+/// and expense, income and new category fan out around your finger.
 struct Dock: View {
     let toFile: Int
     let zoom: Namespace.ID
-    @Binding var isExpanded: Bool
     let onTriage: () -> Void
     let onAdd: (Flow) -> Void
     let onNewCategory: () -> Void
 
-    @Namespace private var glass
-    @State private var isPressing = false
-    /// Opens the menu if the finger is still down when it finishes.
-    @State private var holdTimer: Task<Void, Never>?
-    /// This press opened the menu, so lifting the finger leaves it open.
-    @State private var openedByHold = false
-
-    /// How long a press must last to open the menu instead of adding an expense.
-    static let holdDelay: Duration = .milliseconds(150)
 
     var body: some View {
         HStack(alignment: .bottom) {
-            if toFile > 0 && !isExpanded {
+            if toFile > 0 {
                 Button(action: onTriage) {
                     HStack(spacing: 10) {
                         UntaggedIcon(size: 16)
@@ -45,103 +35,31 @@ struct Dock: View {
                 .transition(.blurReplace)
             }
             Spacer(minLength: 12)
-            // Shapes blend when closer than the container's spacing, so it
-            // stays below every gap here: each one keeps its own outline.
-            GlassEffectContainer(spacing: 8) {
-                VStack(alignment: .trailing, spacing: 26) {
-                    if isExpanded {
-                        VStack(alignment: .trailing, spacing: 14) {
-                            option("New category", symbol: "tag", tint: Theme.create, id: "addCategory", action: onNewCategory)
-                            option("Income", symbol: "arrow.down.left", tint: Theme.income, id: "addIncome") { onAdd(.income) }
-                            option("Expense", symbol: "arrow.up.right", tint: Theme.expense, id: "addExpense") { onAdd(.expense) }
-                        }
-                    }
-                    addButton
-                }
-            }
+            addButton
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 4)
-        .animation(.snappy(duration: 0.26, extraBounce: 0.1), value: isExpanded)
         .animation(.snappy, value: toFile)
     }
 
+    /// The same button as the one at the top left, larger: a tap adds an
+    /// expense, a hold fans out the rest.
     private var addButton: some View {
-        Image(systemName: "plus")
-            .font(.system(size: 24, weight: .regular))
-            .rotationEffect(.degrees(isExpanded ? 45 : 0))
-            .foregroundStyle(.white)
-            .frame(width: 62, height: 62)
-            .contentShape(Circle())
-            .glassEffect(.regular.interactive(), in: .circle)
-            .glassEffectID("add", in: glass)
-            .matchedTransitionSource(id: "add", in: zoom)
-            .scaleEffect(isPressing && !isExpanded ? 0.9 : 1)
-            .animation(.snappy(duration: 0.2), value: isPressing)
-            // One gesture timing the press itself: a tap and a long press on
-            // the same view leave iOS to choose between them, and it often
-            // took a held press for a tap.
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        guard !isPressing else { return }
-                        isPressing = true
-                        guard !isExpanded else { return }
-                        holdTimer = Task { @MainActor in
-                            try? await Task.sleep(for: Self.holdDelay)
-                            guard !Task.isCancelled, isPressing else { return }
-                            openedByHold = true
-                            isExpanded = true
-                        }
-                    }
-                    .onEnded { value in
-                        holdTimer?.cancel()
-                        isPressing = false
-                        if openedByHold {
-                            openedByHold = false
-                        } else if hypot(value.translation.width, value.translation.height) < 40 {
-                            if isExpanded { isExpanded = false } else { onAdd(.expense) }
-                        }
-                    }
-            )
-            .sensoryFeedback(.impact(weight: .medium, intensity: 0.8), trigger: isExpanded) { _, new in new }
-            .accessibilityElement()
-            .accessibilityLabel(isExpanded ? "Close" : "Add expense")
-            .accessibilityHint(isExpanded ? "" : "Touch and hold for income or a new category")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction {
-                if isExpanded { isExpanded = false } else { onAdd(.expense) }
-            }
-            .accessibilityActions {
-                Button("Add income") { onAdd(.income) }
-                Button("New category", action: onNewCategory)
-            }
-            .accessibilityIdentifier("addButton")
+        HoldFanButton(title: "Add expense", symbol: "plus", size: 62, iconSize: 24, iconWeight: .regular) {
+            onAdd(.expense)
+        } items: {
+            fanItems
+        }
+        .matchedTransitionSource(id: "add", in: zoom)
+        .accessibilityHint("Touch and hold for income or a new category")
+        .accessibilityIdentifier("addButton")
     }
 
-    private func option(_ title: String, symbol: String, tint: Color, id: String, action: @escaping () -> Void) -> some View {
-        Button {
-            isExpanded = false
-            action()
-        } label: {
-            HStack(spacing: 12) {
-                Text(title)
-                    .font(.subheadline.weight(.medium))
-                Image(systemName: symbol)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(tint)
-                    .frame(width: 22)
-            }
-            .foregroundStyle(.white)
-            .padding(.leading, 20)
-            .padding(.trailing, 20)
-            .frame(height: 52)
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        // Clear glass with just a hint of its colour.
-        .glassEffect(.regular.tint(tint.opacity(0.2)).interactive(), in: .capsule)
-        .glassEffectID(id, in: glass)
-        .accessibilityIdentifier(id)
+    private var fanItems: [RadialItem] {
+        [
+            RadialItem(id: "addExpense", title: "Expense", symbol: "arrow.up.right", tint: Theme.expense) { onAdd(.expense) },
+            RadialItem(id: "addIncome", title: "Income", symbol: "arrow.down.left", tint: Theme.income) { onAdd(.income) },
+            RadialItem(id: "addCategory", title: "New category", symbol: "tag", tint: Theme.create, action: onNewCategory),
+        ]
     }
 }

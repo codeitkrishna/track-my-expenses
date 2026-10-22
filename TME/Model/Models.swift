@@ -27,6 +27,10 @@ final class LedgerCategory {
     var flowRaw: String = Flow.expense.rawValue
     var sortOrder: Int = 0
     var createdAt: Date = Date.now
+    /// Spending limits for expense categories, in paise; 0 is no limit.
+    var dailyLimitPaise: Int = 0
+    var weeklyLimitPaise: Int = 0
+    var monthlyLimitPaise: Int = 0
 
     @Relationship(deleteRule: .nullify, inverse: \LedgerEntry.category)
     var entries: [LedgerEntry] = []
@@ -71,6 +75,12 @@ final class LedgerEntry {
     var splitModeRaw: String?
     /// Whether your own part was counted when it was split.
     var splitIncludesMe: Bool = true
+    /// The goal this payment was spent from.
+    var goal: Goal?
+    /// Money set aside for goals because of this payment: round-ups, a
+    /// category's share, part of a payday. Goes when the payment does.
+    @Relationship(deleteRule: .cascade, inverse: \GoalMove.entry)
+    var goalMoves: [GoalMove] = []
 
     var flow: Flow {
         get { Flow(rawValue: flowRaw) ?? .expense }
@@ -176,4 +186,92 @@ final class SplitShare {
         self.amountPaise = amountPaise
         self.percent = percent
     }
+}
+
+/// Something you're saving for. Money is set aside for it (`moves`) and
+/// payments can be spent from it (`spends`); nothing leaves your account
+/// until you actually pay.
+@Model
+final class Goal {
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var targetPaise: Int = 0
+    /// SF Symbol, shown when there's no photo.
+    var symbol: String = "star"
+    /// Index into `Palette.slots`.
+    var colorSlot: Int = 0
+    /// A picture of it, kept small. It sharpens as the goal fills.
+    @Attribute(.externalStorage) var photo: Data?
+    /// When it's due: the date you chose, or TME's first estimate.
+    var arriveBy: Date?
+    /// `arriveBy` came from TME's estimate, not from you.
+    var arriveByIsEstimate: Bool = false
+    var createdAt: Date = Date.now
+    /// New payments come out of this goal until then (a trip, say).
+    var spendingUntil: Date?
+    /// Moved to the shelf; what's left goes back to your balance.
+    var finishedAt: Date?
+
+    /// Round every new payment up to this many rupees and set the
+    /// difference aside here. 0 is off.
+    var roundUpRupees: Int = 0
+    var roundUpSince: Date?
+    /// Set aside this percent of every new payment in `shareCategoryID`.
+    var sharePercent: Int = 0
+    var shareCategoryID: UUID?
+    var shareSince: Date?
+    /// On payday, set aside a fixed amount...
+    var paydayPaise: Int = 0
+    /// ...or this percent of what came in.
+    var paydayPercent: Int = 0
+    /// New payments are measured in this goal ("2 days of Goa").
+    var isYardstick: Bool = false
+
+    @Relationship(deleteRule: .cascade, inverse: \GoalMove.goal)
+    var moves: [GoalMove] = []
+
+    @Relationship(deleteRule: .nullify, inverse: \LedgerEntry.goal)
+    var spends: [LedgerEntry] = []
+
+    init(name: String, targetPaise: Int, symbol: String = "star", colorSlot: Int = 0) {
+        self.name = name
+        self.targetPaise = targetPaise
+        self.symbol = symbol
+        self.colorSlot = colorSlot
+    }
+}
+
+/// Money put into a goal (positive) or taken back out (negative).
+@Model
+final class GoalMove {
+    var uuid: UUID = UUID()
+    var amountPaise: Int = 0
+    var date: Date = Date.now
+    var kindRaw: String = GoalMoveKind.manual.rawValue
+    var goal: Goal?
+    /// The payment that set it off, for round-ups, shares and paydays.
+    var entry: LedgerEntry?
+
+    var kind: GoalMoveKind {
+        get { GoalMoveKind(rawValue: kindRaw) ?? .manual }
+        set { kindRaw = newValue.rawValue }
+    }
+
+    init(amountPaise: Int, kind: GoalMoveKind, date: Date = .now) {
+        self.amountPaise = amountPaise
+        self.kindRaw = kind.rawValue
+        self.date = date
+    }
+}
+
+/// Why money moved into a goal.
+enum GoalMoveKind: String, Codable, Sendable {
+    /// Added or taken out by hand.
+    case manual
+    /// The difference from rounding a payment up.
+    case roundUp
+    /// A category's share of a payment.
+    case share
+    /// Part of money that came in.
+    case payday
 }

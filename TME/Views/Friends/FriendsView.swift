@@ -52,16 +52,20 @@ struct FriendsView: View {
                     .accessibilityIdentifier("addFriendButton")
             }
         }
-        .alert("Add a friend", isPresented: $adding) {
-            TextField("Name", text: $newName)
-            Button("Cancel", role: .cancel) { newName = "" }
-            Button("Add") {
-                if !newName.trimmingCharacters(in: .whitespaces).isEmpty {
-                    _ = Splits.findOrCreateFriend(named: newName, in: context)
-                    try? context.save()
-                }
-                newName = ""
+        .promptCard(
+            isPresented: $adding,
+            title: "Add a friend",
+            text: $newName,
+            placeholder: "Name",
+            confirm: "Add",
+            fieldIdentifier: "friendNameField",
+            onCancel: { newName = "" }
+        ) {
+            if !newName.trimmingCharacters(in: .whitespaces).isEmpty {
+                _ = Splits.findOrCreateFriend(named: newName, in: context)
+                try? context.save()
             }
+            newName = ""
         }
     }
 
@@ -100,22 +104,18 @@ struct FriendsView: View {
         }
         .buttonStyle(RowPressStyle())
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
-        .contextMenu {
-            Button("Remove friend", systemImage: "trash", role: .destructive) { deleting = friend }
+        .accessibilityActions {
+            Button("Remove friend") { deleting = friend }
         }
-        .confirmationDialog(
-            "Remove \(friend.name)?",
+        .confirmCard(
             isPresented: Binding(get: { deleting?.uuid == friend.uuid }, set: { if !$0 { deleting = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button("Remove", role: .destructive) {
+            title: "Remove \(friend.name)?",
+            message: "Their splits are removed too. The payments themselves stay.",
+            actions: [PopupAction(title: "Remove", role: .destructive) {
                 context.delete(friend)
                 try? context.save()
-                deleting = nil
-            }
-        } message: {
-            Text("Their splits are removed too. The payments themselves stay.")
-        }
+            }]
+        )
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("friend-\(friend.name)")
     }
@@ -167,7 +167,7 @@ struct FriendDetail: View {
                     ForEach(open) { share in
                         ShareRow(share: share, onOpen: { editing = share.entry }) { settling = share }
                             .swipeToDelete(identifier: "swipeRemove") { removing = share }
-                            .contextMenu { removeActions(share) }
+                            .accessibilityActions { removeActions(share) }
                             .modifier(rowDialogs(share))
                     }
                 }
@@ -178,8 +178,8 @@ struct FriendDetail: View {
                     ForEach(paidBack) { share in
                         ShareRow(share: share, onOpen: { editing = share.entry }, onPaid: nil)
                             .swipeToDelete(identifier: "swipeRemove") { removing = share }
-                            .contextMenu {
-                                Button("Mark as not paid", systemImage: "arrow.uturn.backward") {
+                            .accessibilityActions {
+                                Button("Mark as not paid") {
                                     withAnimation(.snappy) {
                                         share.settled = false
                                         share.settledAt = nil
@@ -245,9 +245,9 @@ struct FriendDetail: View {
     }
 
     @ViewBuilder private func removeActions(_ share: SplitShare) -> some View {
-        Button("Edit", systemImage: "pencil") { editing = share.entry }
-        Button("Delete payment", systemImage: "trash", role: .destructive) { deletePayment(of: share) }
-        Button("Only remove from \(friend.name)", systemImage: "person.badge.minus", role: .destructive) { remove(share) }
+        Button("Edit") { editing = share.entry }
+        Button("Delete payment") { deletePayment(of: share) }
+        Button("Only remove from \(friend.name)") { remove(share) }
     }
 
     /// Takes this payment off the friend's account; the payment stays.
@@ -300,15 +300,17 @@ struct FriendDetail: View {
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityIdentifier("settleAll")
-                .confirmationDialog("\(friend.name) paid you \(Rupees.format(paise: owed))?", isPresented: $settlingAll, titleVisibility: .visible) {
-                    Button("Mark everything as paid") {
+                .confirmCard(
+                    isPresented: $settlingAll,
+                    title: "\(friend.name) paid you \(Rupees.format(paise: owed))?",
+                    actions: [PopupAction(title: "Mark everything as paid", role: .primary) {
                         withAnimation(.snappy) {
                             Splits.settle(friend)
                             try? context.save()
                         }
                         paidCount += 1
-                    }
-                }
+                    }]
+                )
             }
         }
     }
@@ -337,23 +339,20 @@ private struct RowDialogs: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .confirmationDialog(
-                "\(friendName) paid \(Rupees.format(paise: share.amountPaise)) for \(share.entry?.title ?? "this")?",
+            .confirmCard(
                 isPresented: $settling,
-                titleVisibility: .visible
-            ) {
-                Button("Mark as paid", action: markPaid)
-            }
-            .confirmationDialog(
-                "\(Rupees.format(paise: share.amountPaise)) · \(share.entry?.title ?? "Payment")",
+                title: "\(friendName) paid \(Rupees.format(paise: share.amountPaise)) for \(share.entry?.title ?? "this")?",
+                actions: [PopupAction(title: "Mark as paid", role: .primary, action: markPaid)]
+            )
+            .confirmCard(
                 isPresented: $removing,
-                titleVisibility: .visible
-            ) {
-                Button("Delete payment", role: .destructive, action: deletePayment)
-                Button("Only remove from \(friendName)", role: .destructive, action: remove)
-            } message: {
-                Text("Deleting removes the payment from your tracker too. Or keep the payment and just take it off \(friendName)'s account.")
-            }
+                title: "\(Rupees.format(paise: share.amountPaise)) · \(share.entry?.title ?? "Payment")",
+                message: "Deleting removes the payment from your tracker too. Or keep the payment and just take it off \(friendName)'s account.",
+                actions: [
+                    PopupAction(title: "Delete payment", role: .destructive, action: deletePayment),
+                    PopupAction(title: "Only remove from \(friendName)", role: .destructive, action: remove),
+                ]
+            )
     }
 }
 

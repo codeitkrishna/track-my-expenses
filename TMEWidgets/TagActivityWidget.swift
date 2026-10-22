@@ -7,6 +7,7 @@ import WidgetKit
 struct TMEWidgets: WidgetBundle {
     var body: some Widget {
         TagActivityWidget()
+        PaydayActivityWidget()
     }
 }
 
@@ -39,8 +40,17 @@ struct TagActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 6) {
+                        if let line = goalLine(context.attributes, context.state) {
+                            Text(line)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.75))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
                         PromptChoices(attributes: context.attributes, state: context.state, onIsland: true)
-                        if context.state.filedUnder == nil, context.attributes.waiting > 0 {
+                        if context.state.filedUnder == nil, let goal = context.attributes.fromGoal, !context.state.leftGoal {
+                            NotFromGoalButton(entryID: context.attributes.entryID, goal: goal, onIsland: true)
+                        } else if context.state.filedUnder == nil, context.attributes.waiting > 0 {
                             Text(waitingText(context.attributes.waiting))
                                 .font(.caption2)
                                 .foregroundStyle(.white.opacity(0.7))
@@ -75,7 +85,16 @@ private struct LockScreenPrompt: View {
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
+            if let line = goalLine(attributes, state) {
+                Text(line)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             PromptChoices(attributes: attributes, state: state)
+            if state.filedUnder == nil, let goal = attributes.fromGoal, !state.leftGoal {
+                NotFromGoalButton(entryID: attributes.entryID, goal: goal)
+            }
             if state.filedUnder == nil {
                 Text(attributes.waiting > 0
                      ? "Tap here for another category · \(waitingText(attributes.waiting))"
@@ -85,6 +104,33 @@ private struct LockScreenPrompt: View {
             }
         }
         .padding()
+    }
+}
+
+/// What the payment means for a goal, unless it was just taken off the
+/// goal it came out of.
+private func goalLine(_ attributes: TagActivityAttributes, _ state: TagActivityAttributes.ContentState) -> String? {
+    if attributes.fromGoal != nil, state.leftGoal { return "Not from \(attributes.fromGoal ?? "the goal")" }
+    return attributes.goalLine
+}
+
+/// Takes the payment off the goal it came out of.
+private struct NotFromGoalButton: View {
+    let entryID: String
+    let goal: String
+    var onIsland = false
+
+    var body: some View {
+        Button(intent: NotFromGoalIntent(entryID: entryID)) {
+            Label("Not from \(goal)", systemImage: "arrow.uturn.backward")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(onIsland ? Color.white.opacity(0.85) : Color.primary)
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 30)
+                .background(Capsule().strokeBorder(onIsland ? Color.white.opacity(0.25) : Color.primary.opacity(0.2), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 }
 

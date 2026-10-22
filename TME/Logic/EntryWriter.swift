@@ -44,7 +44,12 @@ enum EntryWriter {
             category: category
         )
         context.insert(entry)
+        if flow == .expense {
+            entry.goal = Goals.spendingGoal(at: date, in: context)
+        }
+        GoalRules.sync(entry, in: context)
         try context.save()
+        LimitAlerts.check(entry, in: context)
         return entry
     }
 

@@ -164,19 +164,11 @@ private struct CustomRange: View {
         .accessibilityLabel(side == .from ? "From" : "To")
         .accessibilityValue(date.formatted(date: .long, time: .omitted))
         .accessibilityIdentifier(side == .from ? "rangeFrom" : "rangeTo")
-        .popover(isPresented: Binding(get: { picking == side }, set: { if !$0 { picking = nil } })) {
-            DatePicker(
-                side == .from ? "From" : "To",
-                selection: side == .from ? $from : $to,
-                in: side == .from ? Date.distantPast...to : from...Date.now,
-                displayedComponents: .date
-            )
-            .datePickerStyle(.graphical)
-            .labelsHidden()
-            .frame(width: 320)
-            .padding(12)
-            .presentationCompactAdaptation(.popover)
-        }
+        .dateCard(
+            isPresented: Binding(get: { picking == side }, set: { if !$0 { picking = nil } }),
+            selection: side == .from ? $from : $to,
+            in: side == .from ? Date.distantPast...to : from...Date.now
+        )
     }
 }
 

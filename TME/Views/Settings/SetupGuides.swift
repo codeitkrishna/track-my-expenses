@@ -7,46 +7,41 @@ struct SMSSetupView: View {
     static let keywords = ["debited", "credited", "spent", "Sent Rs"]
 
     var body: some View {
-        List {
-            Section {
-                Text("Apps can't read your messages, but a Shortcuts automation can hand each bank alert to TME the moment it arrives. TME logs it and asks for a category.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+        PanelPage {
+            PanelSection {
+                PanelText("Apps can't read your messages, but a Shortcuts automation can hand each bank alert to TME the moment it arrives. TME logs it and asks for a category.")
             }
-            .listRowBackground(Theme.surface)
-            Section("Set it up once") {
+            PanelSection("Set it up once") {
                 Step(number: 1, text: "Open the **Shortcuts** app and create a new **Automation**.")
                 Step(number: 2, text: "Choose the **Message** trigger. Set **Message Contains** to `debited`. Leave the sender empty: banks' sender names can't be picked.")
                 Step(number: 3, text: "Choose **Run Immediately**, and turn off **Notify When Run**.")
                 Step(number: 4, text: "Add the action **Log Bank SMS** (from TME). Tap its **Message** field and pick **Shortcut Input**.")
                 Step(number: 5, text: "Repeat for the other words your bank uses. Each automation can only match one word.")
             }
-            .listRowBackground(Theme.surface)
-            Section {
+            PanelSection(
+                "Words to use",
+                footer: Text("OTPs, bill reminders and offers are ignored even if they contain these words. Use **Test a bank SMS** to check your bank's format.")
+            ) {
                 ForEach(Self.keywords, id: \.self) { word in
-                    HStack {
-                        Text(word)
-                            .font(.body.monospaced())
-                        Spacer()
-                        Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = word }
-                            .labelStyle(.iconOnly)
+                    PanelRow(word) {
+                        Button { UIPasteboard.general.string = word } label: {
+                            Image(systemName: "doc.on.doc")
+                                .foregroundStyle(Theme.textSecondary)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(PressableStyle())
+                        .accessibilityLabel("Copy \(word)")
                     }
+                    .font(.body.monospaced())
                 }
-            } header: {
-                Text("Words to use")
-            } footer: {
-                Text("OTPs, bill reminders and offers are ignored even if they contain these words. Use **Test a bank SMS** to check your bank's format.")
             }
-            .listRowBackground(Theme.surface)
-            Section("Good to know") {
-                Text("If the same payment arrives twice, it's only logged once.")
-                Text("Once you've filed a merchant, its payments are filed automatically and you won't be asked again.")
-                Text("Some banks skip the SMS for small UPI payments, such as HDFC for ₹100 and under. Add those with the quick-add button.")
+            PanelSection("Good to know") {
+                PanelText("If the same payment arrives twice, it's only logged once.")
+                PanelText("Once you've filed a merchant, its payments are filed automatically and you won't be asked again.")
+                PanelText("Some banks skip the SMS for small UPI payments, such as HDFC for ₹100 and under. Add those with the quick-add button.")
             }
-            .listRowBackground(Theme.surface)
-            .font(.callout)
         }
-        .matteList()
         .navigationTitle("Auto-log bank SMS")
     }
 }
@@ -59,41 +54,36 @@ struct SMSTesterView: View {
 
     var body: some View {
         let parsed = BankSMSParser.parse(message)
-        List {
-            Section {
+        PanelPage {
+            PanelSection(footer: Text("Long-press a bank SMS in Messages, tap Copy, and paste it here.")) {
                 TextField("Paste a bank SMS here", text: $message, axis: .vertical)
                     .lineLimit(4...10)
+                    .foregroundStyle(.white)
+                    .padding(16)
                     .accessibilityIdentifier("smsTesterField")
-            } footer: {
-                Text("Long-press a bank SMS in Messages, tap Copy, and paste it here.")
             }
-            .listRowBackground(Theme.surface)
-
             if !message.isEmpty {
-                Section("What TME reads") {
+                PanelSection("What TME reads") {
                     if let parsed {
-                        LabeledContent("Type", value: parsed.kind == .expense ? "Expense" : "Income")
-                        LabeledContent("Amount", value: Rupees.format(paise: parsed.amountPaise))
-                        LabeledContent("Merchant", value: parsed.counterparty ?? "Not found")
-                        LabeledContent("Account", value: parsed.accountTail.map { "••\($0)" } ?? "Not found")
-                        LabeledContent("Reference", value: parsed.reference ?? "Not found")
+                        PanelValueRow(title: "Type", value: parsed.kind == .expense ? "Expense" : "Income")
+                        PanelValueRow(title: "Amount", value: Rupees.format(paise: parsed.amountPaise))
+                        PanelValueRow(title: "Merchant", value: parsed.counterparty ?? "Not found")
+                        PanelValueRow(title: "Account", value: parsed.accountTail.map { "••\($0)" } ?? "Not found")
+                        PanelValueRow(title: "Reference", value: parsed.reference ?? "Not found")
                     } else {
-                        Label("Not a transaction, so it would be ignored.", systemImage: "xmark.circle")
-                            .foregroundStyle(.secondary)
+                        PanelRow("Not a transaction, so it would be ignored.", symbol: "xmark.circle", tint: Theme.textSecondary)
                     }
                 }
-                .listRowBackground(Theme.surface)
                 if parsed != nil {
-                    Section {
-                        Button("Log it now", systemImage: "plus.circle") { log() }
-                    } footer: {
-                        if let outcome { Text(outcome) }
+                    PanelSection(footer: outcome.map { Text($0) }) {
+                        Button { log() } label: {
+                            PanelRow("Log it now", symbol: "plus.circle", tint: Theme.income)
+                        }
+                        .buttonStyle(RowPressStyle())
                     }
-                    .listRowBackground(Theme.surface)
                 }
             }
         }
-        .matteList()
         .navigationTitle("Test a bank SMS")
     }
 
@@ -116,33 +106,25 @@ struct SMSTesterView: View {
 /// How to get an always-on-screen button for quick adds.
 struct FloatingButtonSetupView: View {
     var body: some View {
-        List {
-            Section {
-                Text("iPhone apps can't float a button over other apps, but iPhone's own **AssistiveTouch** button can: it stays on screen, you can drag it anywhere, and it can run TME's actions.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+        PanelPage {
+            PanelSection {
+                PanelText("iPhone apps can't float a button over other apps, but iPhone's own **AssistiveTouch** button can: it stays on screen, you can drag it anywhere, and it can run TME's actions.")
             }
-            .listRowBackground(Theme.surface)
-            Section("1. Make the shortcuts") {
+            PanelSection("1. Make the shortcuts") {
                 Step(number: 1, text: "In **Shortcuts**, tap **+**, add the action **Add Expense** (TME) and name the shortcut \"Add Expense\".")
                 Step(number: 2, text: "Do the same for **Add Income** and **Add Category**.")
                 Step(number: 3, text: "Make one more with the action **Open App → TME**, named \"Open TME\".")
             }
-            .listRowBackground(Theme.surface)
-            Section("2. Turn on the button") {
+            PanelSection("2. Turn on the button") {
                 Step(number: 4, text: "Go to **Settings → Accessibility → Touch → AssistiveTouch** and turn it on.")
                 Step(number: 5, text: "**Customize Top Level Menu**: set it to 3 icons and pick Add Expense, Add Income and Add Category.")
                 Step(number: 6, text: "Under **Custom Actions**, set **Long Press** to **Open Menu** and **Single-Tap** to **Open TME**.")
             }
-            .listRowBackground(Theme.surface)
-            Section("How it works") {
-                Text("Long-press the button and tap Add Expense: a small prompt asks for the amount and category over whatever app you're in. TME doesn't open.")
-                Text("Prefer no button? **Settings → Accessibility → Touch → Back Tap** can run Add Expense when you double-tap the back of the phone.")
+            PanelSection("How it works") {
+                PanelText("Long-press the button and tap Add Expense: a small prompt asks for the amount and category over whatever app you're in. TME doesn't open.")
+                PanelText("Prefer no button? **Settings → Accessibility → Touch → Back Tap** can run Add Expense when you double-tap the back of the phone.")
             }
-            .listRowBackground(Theme.surface)
-            .font(.callout)
         }
-        .matteList()
         .navigationTitle("Floating button")
     }
 }
@@ -160,7 +142,11 @@ private struct Step: View {
                 .background(Palette.chart, in: Circle())
             Text(text)
                 .font(.callout)
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }

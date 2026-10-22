@@ -33,6 +33,10 @@ extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        if PaydayPrompt.handle(actionID: response.actionIdentifier, userInfo: response.notification.request.content.userInfo) {
+            completionHandler()
+            return
+        }
         let typedText = (response as? UNTextInputNotificationResponse)?.userText
         let openedEntry = TagNotifications.handle(
             actionID: response.actionIdentifier,

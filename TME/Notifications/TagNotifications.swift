@@ -11,6 +11,9 @@ enum TagNotifications {
     static let expenseCategoryID = "TAG_EXPENSE"
     static let incomeCategoryID = "TAG_INCOME"
     static let otherActionID = "TAG_OTHER"
+    /// An expense coming out of a goal: the same buttons plus "Not from Goa".
+    static let goalExpenseCategoryID = "TAG_EXPENSE_GOAL"
+    static let notFromGoalActionID = "TAG_NOT_FROM_GOAL"
     static let entryKey = "entryID"
     private static let categoryActionPrefix = "cat:"
     private static let buttonCount = 3
@@ -23,10 +26,24 @@ enum TagNotifications {
 
     /// Keeps the buttons in step with which categories you use most.
     static func registerCategories(in context: ModelContext) {
-        let categories = [
+        var categories = [
             UNNotificationCategory(identifier: expenseCategoryID, actions: actions(for: .expense, in: context), intentIdentifiers: []),
             UNNotificationCategory(identifier: incomeCategoryID, actions: actions(for: .income, in: context), intentIdentifiers: []),
+            PaydayPrompt.notificationCategory,
         ]
+        if let goal = Goals.spendingGoal(in: context) {
+            let notFromGoal = UNNotificationAction(
+                identifier: notFromGoalActionID,
+                title: "Not from \(goal.name)",
+                options: [],
+                icon: UNNotificationActionIcon(systemImageName: "arrow.uturn.backward")
+            )
+            categories.append(UNNotificationCategory(
+                identifier: goalExpenseCategoryID,
+                actions: actions(for: .expense, in: context) + [notFromGoal],
+                intentIdentifiers: []
+            ))
+        }
         UNUserNotificationCenter.current().setNotificationCategories(Set(categories))
     }
 
@@ -38,19 +55,32 @@ enum TagNotifications {
 
     static func askForCategory(entryID: UUID, in context: ModelContext) async {
         guard let entry = entry(withID: entryID, in: context) else { return }
-        await send(for: entry, body: "Press and hold to pick a category.", sound: .default, in: context)
+        await send(for: entry, body: withGoalLine("Press and hold to pick a category.", for: entry, in: context), sound: .default, in: context)
     }
 
     /// A quiet "₹307 to Swiggy: filed under Food" for payments filed from
     /// merchant memory, with the same buttons to change it.
+    /// Over a category's limit, it says so, with a sound.
     static func announceFiled(entryID: UUID, in context: ModelContext) async {
+        guard let entry = entry(withID: entryID, in: context) else { return }
         guard announcesAutoFiled else {
             PromptLog.add("Not announced: notifications for automatic filing are off in Settings.")
+            LimitAlerts.check(entry, in: context)
             return
         }
-        guard let entry = entry(withID: entryID, in: context) else { return }
         let name = entry.category?.name ?? "its usual category"
-        await send(for: entry, body: "Filed under \(name). Press and hold to change.", sound: nil, in: context)
+        if let limit = LimitAlerts.message(for: entry, in: context) {
+            await send(for: entry, body: "\(limit.title): \(limit.detail) Press and hold to change the category.", sound: .default, in: context)
+            return
+        }
+        await send(for: entry, body: withGoalLine("Filed under \(name). Press and hold to change.", for: entry, in: context), sound: nil, in: context)
+    }
+
+    /// Puts "That's 2 days of saving for Goa." (or "From Goa · ₹12,400
+    /// left.") first, when there's a goal to say it about.
+    private static func withGoalLine(_ body: String, for entry: LedgerEntry, in context: ModelContext) -> String {
+        guard let line = Yardstick.line(for: entry, in: context) else { return body }
+        return "\(line). \(body)"
     }
 
     private static func send(for entry: LedgerEntry, body: String, sound: UNNotificationSound?, in context: ModelContext) async {
@@ -73,7 +103,10 @@ enum TagNotifications {
         content.body = body
         content.sound = sound
         content.threadIdentifier = "tag"
-        content.categoryIdentifier = entry.flow == .expense ? expenseCategoryID : incomeCategoryID
+        content.categoryIdentifier = switch entry.flow {
+        case .expense: entry.goal != nil && Goals.spendingGoal(in: context) != nil ? goalExpenseCategoryID : expenseCategoryID
+        case .income: incomeCategoryID
+        }
         content.userInfo = [entryKey: entry.uuid.uuidString]
 
         let request = UNNotificationRequest(identifier: entry.uuid.uuidString, content: content, trigger: nil)
@@ -104,6 +137,12 @@ enum TagNotifications {
                   let category = Tagging.findOrCreateCategory(named: typedText, flow: entry.flow, in: context) {
             Tagging.assign(category, to: entry, in: context)
             PromptLog.add("Filed under \(category.name) from the notification.")
+        } else if actionID == notFromGoalActionID {
+            let name = entry.goal?.name ?? "the goal"
+            entry.goal = nil
+            GoalRules.sync(entry, in: context)
+            try? context.save()
+            PromptLog.add("No longer spent from \(name), from the notification.")
         } else if actionID == UNNotificationDefaultActionIdentifier {
             return id
         }

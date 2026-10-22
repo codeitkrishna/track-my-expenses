@@ -21,43 +21,45 @@ struct StartingBalanceEditor: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            PanelPage {
+                PanelSection(footer: Text("What's in your account right now. Put a minus sign in front if you owe money.")) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("₹")
                             .font(.system(size: 26, weight: .light))
                             .foregroundStyle(Theme.textTertiary)
                         TextField("0", text: $amountText)
                             .font(.system(size: 48, weight: .light))
+                            .foregroundStyle(.white)
                             .keyboardType(.numbersAndPunctuation)
                             .focused($amountFocused)
                             .accessibilityIdentifier("balanceField")
                     }
-                } footer: {
-                    Text("What's in your account right now. Put a minus sign in front if you owe money.")
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 76)
                 }
-                .listRowBackground(Theme.surface)
 
-                Section {
-                    DatePicker("As of", selection: $asOf, in: ...Date.now)
-                } footer: {
-                    Text("Income and expenses from this moment on change the balance. Earlier entries are already part of it.")
+                PanelSection("As of", footer: Text("Income and expenses from this moment on change the balance. Earlier entries are already part of it.")) {
+                    CalendarGrid(selection: $asOf, in: Date.distantPast...Date.now)
+                        .padding(12)
+                    TimeStepper(selection: $asOf, range: Date.distantPast...Date.now)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 4)
                 }
-                .listRowBackground(Theme.surface)
 
                 if storedDate > 0 {
-                    Section {
-                        Button("Remove starting balance", role: .destructive) {
+                    PanelSection {
+                        Button {
                             BalanceStore.save(nil)
                             storedDate = 0
                             storedPaise = 0
                             dismiss()
+                        } label: {
+                            PanelRow("Remove starting balance", symbol: "trash", tint: Theme.expense)
                         }
+                        .buttonStyle(RowPressStyle())
                     }
-                    .listRowBackground(Theme.surface)
                 }
             }
-            .matteList()
             .navigationTitle("Starting balance")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

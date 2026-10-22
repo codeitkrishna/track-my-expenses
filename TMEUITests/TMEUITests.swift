@@ -49,7 +49,7 @@ final class TMEUITests: XCTestCase {
         let app = launch()
         let add = app.buttons["addButton"]
         XCTAssertTrue(add.waitForExistence(timeout: 5))
-        add.press(forDuration: 0.35)
+        add.press(forDuration: 0.5)
         XCTAssertTrue(app.buttons["addExpense"].waitForExistence(timeout: 3), "A short hold opens the menu")
         add.tap()
         XCTAssertTrue(app.buttons["addButton"].waitForExistence(timeout: 3))
@@ -169,10 +169,10 @@ final class TMEUITests: XCTestCase {
         app.buttons["addButton"].tap()
         enter("120", in: app)
         app.buttons["pickNewCategory"].tap()
-        let name = app.alerts.textFields.firstMatch
+        let name = app.textFields["newCategoryName"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.typeText("Pets")
-        app.alerts.buttons["Create"].tap()
+        app.buttons["popupConfirm"].tap()
 
         let pets = app.buttons["pick-Pets"]
         XCTAssertTrue(pets.waitForExistence(timeout: 5))
@@ -187,10 +187,10 @@ final class TMEUITests: XCTestCase {
         XCTAssertTrue(queue.waitForExistence(timeout: 5))
         element("entry-Swiggy", in: app).tap()
         app.buttons["newCategoryChip"].firstMatch.tap()
-        let name = app.alerts.textFields.firstMatch
+        let name = app.textFields["newCategoryName"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.typeText("Eating out")
-        app.alerts.buttons["Create"].tap()
+        app.buttons["popupConfirm"].tap()
 
         waitUntilGone(queue)
         XCTAssertTrue(element("entry-Swiggy", in: app).label.contains("Eating out"))
@@ -212,7 +212,7 @@ final class TMEUITests: XCTestCase {
 
     func testTrendsOverAnyRange() {
         let app = launch(["-seedDemo"])
-        app.buttons["trendsButton"].tap()
+        app.openPanel("Trends")
         XCTAssertTrue(element("trendChart", in: app).waitForExistence(timeout: 5))
         let total = element("trendTotal", in: app)
         let lastThirtyDays = total.label
@@ -247,7 +247,7 @@ final class TMEUITests: XCTestCase {
         app.buttons["saveButton"].tap()
 
         // The friends panel: Prakhar owes his third.
-        app.buttons["friendsButton"].tap()
+        app.openPanel("Friends")
         XCTAssertTrue(element("friendsTotal", in: app).waitForExistence(timeout: 5))
         XCTAssertTrue(element("friendsTotal", in: app).label.contains("₹600"))
         element("friend-Prakhar", in: app).tap()
@@ -301,7 +301,7 @@ final class TMEUITests: XCTestCase {
         app.buttons["splitDone"].tap()
         app.buttons["saveButton"].tap()
         // ...and ₹200 lent to him, added from his page.
-        app.buttons["friendsButton"].tap()
+        app.openPanel("Friends")
         element("friend-Prakhar", in: app).tap()
         app.buttons["addForFriend"].tap()
         enter("200", in: app)
@@ -332,10 +332,12 @@ final class TMEUITests: XCTestCase {
 
     func testEditingAFriendsPaymentChangesTheSplit() {
         let app = launch()
-        app.buttons["friendsButton"].tap()
+        app.openPanel("Friends")
         app.buttons["addFriendButton"].tap()
-        app.alerts.textFields.firstMatch.typeText("Prakash")
-        app.alerts.buttons["Add"].tap()
+        let name = app.textFields["friendNameField"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.typeText("Prakash")
+        app.buttons["popupConfirm"].tap()
         element("friend-Prakash", in: app).tap()
         app.buttons["addForFriend"].tap()
         enter("400", in: app)
@@ -347,7 +349,7 @@ final class TMEUITests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'open-'")).firstMatch.tap()
         XCTAssertTrue(app.buttons["splitButton"].waitForExistence(timeout: 5))
         app.buttons["splitButton"].tap()
-        app.switches["splitIncludesMe"].switches.firstMatch.tap()
+        element("splitIncludesMe", in: app).tap()
         XCTAssertTrue(element("splitStatus", in: app).label.contains("₹200 owed to you"))
         app.buttons["splitDone"].tap()
         app.buttons["pick-Food"].tap()
@@ -424,7 +426,7 @@ final class TMEUITests: XCTestCase {
         let before = app.descendants(matching: .any).matching(identifier: "entry-Bigbasket").count
         row.tap()
         app.buttons["Delete"].firstMatch.tap()
-        let confirm = app.buttons.matching(NSPredicate(format: "label == 'Delete'")).element(boundBy: 1)
+        let confirm = app.buttons["confirmDeletePayment"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "The trash button asks first")
         confirm.tap()
         let fewer = NSPredicate(format: "count == %d", before - 1)
