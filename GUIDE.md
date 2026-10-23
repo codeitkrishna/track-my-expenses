@@ -311,6 +311,18 @@ If you miss a banner, the payment waits for you.
 
 <img src="docs/guide/add-payment.png" width="260" alt="Adding an expense">
 
+### Pay by scanning a QR code
+
+1. Tap the scan button (the square next to **+**). The first time, allow TME to use the camera.
+2. Point it at the shop's UPI QR code. If you have the code as a picture, for example a screenshot from WhatsApp, tap **From photo** instead. In the dark, tap the torch.
+3. TME shows who you're paying and their UPI ID, and lists the UPI apps on your iPhone. If you want a note ("Table 4", "Milk and eggs"), type it here: the payment app shows it as the remark, and TME keeps it on the payment. Then tap the app you want to pay with.
+4. The app opens on its amount screen for that shop (or ready to pay, if the shop's code has the amount in it). Pay as usual.
+5. Come back to TME. It asks **Paid with PhonePe?** (or whichever app) with the shop's name filled in. If the bank's SMS has already arrived, or the code had the amount, the amount is filled in too; otherwise type it. Pick a category and tap **Save**. If you didn't pay after all, tap **Didn't pay**.
+
+- TME remembers the shop's category, so next time it's already picked.
+- If the bank's SMS arrives after you've saved, TME adds the bank's details to the same payment instead of logging it again.
+- An app that isn't listed, such as your bank's own app, is under **Another UPI app** when your iPhone has one. You can also tap the UPI ID to copy it.
+
 ### Change or delete a payment
 
 - Tap a payment to change it.
@@ -388,6 +400,10 @@ Go to **Settings → Categories**, tap a category, and type a limit **per day**,
 - If it says the SMS "isn't a transaction", paste that SMS into **Settings → Test a bank SMS** to see what TME reads.
 
 **No banner asks for the category.** In TME, check **Settings → Category prompts**. In the iPhone's **Settings → Apps → TME**, check that **Notifications** are allowed and **Live Activities** is on.
+
+**The scanner says TME can't use the camera.** In the iPhone's **Settings → Apps → TME**, turn on **Camera**. Until then, tap **From photo** to read a code from a picture.
+
+**A UPI app you have isn't listed.** TME lists PhonePe, Google Pay, Paytm, CRED and BHIM. For any other UPI app, tap **Another UPI app**, or tap the UPI ID to copy it and paste it into that app.
 
 **SideStore can't install or refresh.** Make sure LocalDevVPN is connected and you're on Wi-Fi. If it still fails (this can happen after an iOS update), connect the iPhone to your computer and do [Step 3: Install SideStore](#step-3-install-sidestore) again.
 

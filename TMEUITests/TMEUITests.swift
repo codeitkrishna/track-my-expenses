@@ -446,4 +446,130 @@ final class TMEUITests: XCTestCase {
         let scrubbed = strip.value as? String ?? ""
         XCTAssertNotEqual(today, scrubbed, "The marker moved to another day")
     }
+
+    /// Scans a code (as the camera would), "pays" with a pretend PhonePe,
+    /// and logs it on the way back to TME.
+    private func launchScanning(_ code: String) -> XCUIApplication {
+        let app = launch(["-scanCode", Data(code.utf8).base64EncodedString(), "-upiApps", "phonepe,tez"])
+        XCTAssertTrue(app.buttons["scanButton"].waitForExistence(timeout: 5))
+        app.buttons["scanButton"].tap()
+        XCTAssertTrue(element("payeeName", in: app).waitForExistence(timeout: 5))
+        return app
+    }
+
+    /// Leaving for the payment app and coming back.
+    private func payAndReturn(with id: String, in app: XCUIApplication) {
+        app.buttons["payWith-\(id)"].tap()
+        waitUntilGone(element("payeeName", in: app))
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(element("paidHeader", in: app).waitForExistence(timeout: 5), "Coming back asks to log the payment")
+    }
+
+    func testScanAndPayLogsThePaymentOnReturn() {
+        let app = launchScanning("upi://pay?pa=sharmakirana@ybl&pn=Sharma%20Kirana&mc=5411&cu=INR")
+        XCTAssertEqual(element("payeeName", in: app).label, "Sharma Kirana")
+        XCTAssertTrue(app.buttons["payWith-phonepe"].exists)
+        XCTAssertTrue(app.buttons["payWith-tez"].exists)
+        XCTAssertFalse(app.buttons["payWith-paytmmp"].exists, "Only the apps on the phone")
+        payAndReturn(with: "phonepe", in: app)
+        XCTAssertTrue(element("paidHeader", in: app).label.contains("PhonePe"))
+
+        enter("120", in: app)
+        app.buttons["pick-Groceries"].tap()
+        app.buttons["saveButton"].tap()
+        XCTAssertTrue(element("entry-Sharma Kirana", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(element("monthSpent", in: app).label.contains("₹120"))
+        XCTAssertTrue(element("entry-Sharma Kirana", in: app).label.contains("Groceries"))
+
+        // Next time the shop's category is already picked.
+        app.buttons["scanButton"].tap()
+        XCTAssertTrue(element("payeeName", in: app).waitForExistence(timeout: 5))
+        payAndReturn(with: "tez", in: app)
+        enter("80", in: app)
+        XCTAssertTrue(app.buttons["saveButton"].label.contains("Groceries"))
+    }
+
+    func testAShopsFixedAmountIsFilledIn() {
+        let app = launchScanning("upi://pay?pa=bluecafe@okicici&pn=Blue%20Cafe&am=245.50&cu=INR&tr=ORD1234")
+        XCTAssertTrue(element("payeeAmount", in: app).label.contains("₹245.50"))
+        payAndReturn(with: "phonepe", in: app)
+        XCTAssertEqual(element("amountSource", in: app).label, "Set by the shop")
+        app.buttons["saveButton"].tap()
+        XCTAssertTrue(element("entry-Blue Cafe", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(element("monthSpent", in: app).label.contains("₹245.50"))
+    }
+
+    func testTheBankSMSFillsInTheAmountAndIsLoggedOnce() {
+        let sms = "Sent Rs.120.00\nFrom HDFC Bank A/C *1234\nTo SHARMA KIRANA STORE\nOn 17/10/26\nRef 629012345690\nNot You?"
+        let code = "upi://pay?pa=sharmakirana@ybl&pn=Sharma%20Kirana"
+        let app = launch(["-scanCode", Data(code.utf8).base64EncodedString(), "-upiApps", "phonepe",
+                          "-smsWhilePaying", Data(sms.utf8).base64EncodedString()])
+        app.buttons["scanButton"].tap()
+        XCTAssertTrue(element("payeeName", in: app).waitForExistence(timeout: 5))
+        payAndReturn(with: "phonepe", in: app)
+        XCTAssertEqual(element("amountSource", in: app).label, "From your bank's SMS")
+        XCTAssertEqual(element("amountField", in: app).value as? String, "₹120")
+        app.buttons["pick-Groceries"].tap()
+        app.buttons["saveButton"].tap()
+
+        // One payment, under the shop's name, with the bank's message.
+        let row = element("entry-Sharma Kirana", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertFalse(element("entry-Sharma Kirana Store", in: app).exists)
+        XCTAssertTrue(element("monthSpent", in: app).label.contains("₹120"))
+        row.tap()
+        XCTAssertTrue(app.buttons["smsButton"].waitForExistence(timeout: 5), "The bank's message is kept")
+    }
+
+    func testANoteTypedBeforePayingIsKept() {
+        let app = launchScanning("upi://pay?pa=bluecafe@okicici&pn=Blue%20Cafe&tn=Table%204")
+        let field = app.textFields["payNoteField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, "Table 4", "Starts as the code's own note")
+        field.tap()
+        field.typeText(" with Riya\n")
+        payAndReturn(with: "phonepe", in: app)
+        XCTAssertEqual(app.textFields["noteField"].value as? String, "Table 4 with Riya")
+        enter("640", in: app)
+        app.buttons["pick-Food"].tap()
+        app.buttons["saveButton"].tap()
+        let row = element("entry-Blue Cafe", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(app.textFields["noteField"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["noteField"].value as? String, "Table 4 with Riya", "Saved on the payment")
+    }
+
+    func testDidntPayLogsNothing() {
+        let app = launchScanning("upi://pay?pa=sharmakirana@ybl&pn=Sharma%20Kirana")
+        payAndReturn(with: "phonepe", in: app)
+        app.buttons["didntPay"].tap()
+        waitUntilGone(element("paidHeader", in: app))
+        XCTAssertFalse(element("entry-Sharma Kirana", in: app).exists)
+        // It isn't asked about again.
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(app.buttons["scanButton"].waitForExistence(timeout: 5))
+        XCTAssertFalse(element("paidHeader", in: app).waitForExistence(timeout: 2))
+    }
+
+    func testNotAUPICodeIsExplained() {
+        let app = launch(["-scanCode", Data("https://example.com/menu".utf8).base64EncodedString()])
+        app.buttons["scanButton"].tap()
+        let caption = element("scanCaption", in: app)
+        XCTAssertTrue(caption.waitForExistence(timeout: 5))
+        // Shown for a few seconds, so look often rather than wait on a predicate.
+        let deadline = Date.now.addingTimeInterval(4)
+        while caption.label != "That isn't a UPI payment code.", Date.now < deadline { usleep(200_000) }
+        XCTAssertEqual(caption.label, "That isn't a UPI payment code.")
+        XCTAssertTrue(element("noCamera", in: app).exists, "No camera in UI tests; a photo still works")
+    }
+
+    func testNoUPIAppsSaysSo() {
+        let app = launch(["-scanCode", Data("upi://pay?pa=sharmakirana@ybl".utf8).base64EncodedString(), "-upiApps", ""])
+        app.buttons["scanButton"].tap()
+        XCTAssertTrue(element("noUPIApps", in: app).waitForExistence(timeout: 5))
+        XCTAssertEqual(element("payeeName", in: app).label, "sharmakirana@ybl", "No name in the code: its UPI ID")
+    }
 }

@@ -8,6 +8,7 @@ import TMECore
 struct LedgerView: View {
     @Environment(\.modelContext) private var context
     @Environment(AppRouter.self) private var router
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
     @Query(sort: \LedgerCategory.sortOrder) private var categories: [LedgerCategory]
     @Query(filter: #Predicate<Goal> { $0.finishedAt == nil }) private var openGoals: [Goal]
@@ -175,6 +176,7 @@ struct LedgerView: View {
                     toFile: toFile,
                     zoom: zoom,
                     onTriage: { sheet = .triage },
+                    onScan: { sheet = .scan },
                     onAdd: { sheet = .add($0) },
                     onNewCategory: { sheet = .newCategory }
                 )
@@ -226,6 +228,11 @@ struct LedgerView: View {
                 case .triage:
                     TriageView()
                         .navigationTransition(.zoom(sourceID: "triage", in: zoom))
+                case .scan:
+                    ScanPayView()
+                        .navigationTransition(.zoom(sourceID: "scan", in: zoom))
+                case .paid(let payment, let logged):
+                    EntryComposer(mode: .paid(payment, logged: logged))
                 case .balance:
                     StartingBalanceEditor()
                 case .newCategory:
@@ -248,6 +255,13 @@ struct LedgerView: View {
                 showingGoals = true
                 router.showGoals = false
             }
+            .onChange(of: scenePhase, initial: true) { _, phase in
+                switch phase {
+                case .background: ScanPay.noteLeft()
+                case .active: askAboutPayment()
+                default: break
+                }
+            }
             .onChange(of: router.entryToTag, initial: true) { _, id in
                 guard let id else { return }
                 if let entry = entries.first(where: { $0.uuid == id }) { sheet = .edit(entry) }
@@ -266,6 +280,15 @@ struct LedgerView: View {
         case .goals: showingGoals = true
         case .categories: showingCategories = true
         }
+    }
+
+    /// Back from paying a scanned code: log it, with the amount from the
+    /// code or the bank's SMS when either has it.
+    private func askAboutPayment() {
+        guard let payment = ScanPay.due() else { return }
+        if case .paid(let shown, _) = sheet, shown.id == payment.id { return }
+        let logged = ScanPay.smsEntry(for: payment, amountPaise: payment.payee.amountPaise, in: context)
+        sheet = .paid(payment, logged)
     }
 
     private func tap(_ entry: LedgerEntry) {
@@ -382,6 +405,8 @@ enum LedgerSheet: Identifiable {
     case add(Flow)
     case edit(LedgerEntry)
     case triage
+    case scan
+    case paid(PendingPayment, LedgerEntry?)
     case balance
     case newCategory
     case settings
@@ -391,6 +416,8 @@ enum LedgerSheet: Identifiable {
         case .add(let flow): "add-\(flow.rawValue)"
         case .edit(let entry): "edit-\(entry.uuid)"
         case .triage: "triage"
+        case .scan: "scan"
+        case .paid(let payment, _): "paid-\(payment.id)"
         case .balance: "balance"
         case .newCategory: "newCategory"
         case .settings: "settings"

@@ -11,6 +11,9 @@ let debugLog = Logger(subsystem: "tme.debug", category: "hooks")
 ///   -seedLots              a heavy month: 300 payments, for scroll performance
 ///   -seedGoals             three months of payments, a balance, and goals
 ///   -simulateSMS <base64>  handle a bank SMS as the automation would
+///   -scanCode <base64>     the scanner reads this as if the camera had
+///   -upiApps <ids>         pretend these UPI apps are installed ("phonepe,tez")
+///   -smsWhilePaying <base64>  a bank SMS that arrives while "paying" in one
 @MainActor
 enum DebugHooks {
     static func run(in context: ModelContext) {

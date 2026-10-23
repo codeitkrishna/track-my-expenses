@@ -93,6 +93,7 @@ struct SMSTesterView: View {
             switch result {
             case .ignored: outcome = "Ignored: not a transaction."
             case .duplicate: outcome = "Already logged."
+            case .matchedScan: outcome = "Already logged when you paid by scanning; the bank's details were added to it."
             case .autoTagged: outcome = "Logged and filed automatically."
             case .needsCategory: outcome = "Logged. Pick its category from the prompt, or in Activity."
             }

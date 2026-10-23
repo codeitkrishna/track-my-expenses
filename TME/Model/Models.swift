@@ -14,6 +14,8 @@ enum Flow: String, Codable, CaseIterable, Identifiable, Sendable {
 enum EntrySource: String, Codable, Sendable {
     case manual
     case sms
+    /// Paid from a UPI QR code scanned in TME.
+    case scan
 }
 
 @Model
@@ -68,6 +70,8 @@ final class LedgerEntry {
     var reference: String?
     var accountTail: String?
     var rawMessage: String?
+    /// The UPI ID it was paid to, for payments made from a scanned code.
+    var upiID: String?
     /// Friends' parts of this payment, if it was split.
     @Relationship(deleteRule: .cascade, inverse: \SplitShare.entry)
     var shares: [SplitShare] = []
@@ -95,6 +99,8 @@ final class LedgerEntry {
     /// Banks shout merchant names ("SWIGGY"); show them as "Swiggy".
     var displayMerchant: String? {
         guard let merchant, !merchant.isEmpty else { return nil }
+        // A UPI ID stays as it is.
+        if merchant.contains("@") { return merchant }
         let isOneCase = merchant == merchant.uppercased() || merchant == merchant.lowercased()
         return isOneCase ? merchant.localizedCapitalized : merchant
     }

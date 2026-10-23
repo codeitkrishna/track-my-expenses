@@ -1,12 +1,14 @@
 import SwiftUI
 
 /// The controls floating over the ledger: payments still waiting for a
-/// category on the left, the add button on the right. Hold the add button
-/// and expense, income and new category fan out around your finger.
+/// category on the left; scan to pay and the add button on the right. Hold
+/// the add button and expense, income and new category fan out around your
+/// finger.
 struct Dock: View {
     let toFile: Int
     let zoom: Namespace.ID
     let onTriage: () -> Void
+    let onScan: () -> Void
     let onAdd: (Flow) -> Void
     let onNewCategory: () -> Void
 
@@ -35,11 +37,30 @@ struct Dock: View {
                 .transition(.blurReplace)
             }
             Spacer(minLength: 12)
+            scanButton
             addButton
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 4)
         .animation(.snappy, value: toFile)
+    }
+
+    /// Scan a shop's UPI code and pay it with any UPI app.
+    private var scanButton: some View {
+        Button(action: onScan) {
+            Image(systemName: "qrcode.viewfinder")
+                .font(.system(size: 21, weight: .regular))
+                .foregroundStyle(.white)
+                .frame(width: 54, height: 54)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: .circle)
+        .matchedTransitionSource(id: "scan", in: zoom)
+        .padding(.trailing, 4)
+        .accessibilityLabel("Scan and pay")
+        .accessibilityHint("Scan a UPI QR code and pay it with any UPI app")
+        .accessibilityIdentifier("scanButton")
     }
 
     /// The same button as the one at the top left, larger: a tap adds an

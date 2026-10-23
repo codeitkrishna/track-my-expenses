@@ -85,6 +85,8 @@ struct EntryRow: View {
             parts.append(names.count == 1 ? "Split with \(names[0])" : "Split with \(names.count)")
         } else if entry.source == .sms {
             parts.append("SMS")
+        } else if entry.source == .scan {
+            parts.append("Scanned")
         }
         return parts.joined(separator: " · ")
     }

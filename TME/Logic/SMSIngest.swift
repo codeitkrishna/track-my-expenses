@@ -7,6 +7,9 @@ enum IngestOutcome: Equatable {
     case ignored
     /// Already logged from an earlier copy of the same alert.
     case duplicate
+    /// The SMS for a payment already logged from a scanned code; it adds
+    /// the bank's details to that one.
+    case matchedScan(UUID)
     /// Logged and filed under the category this merchant had last time.
     case autoTagged(UUID)
     /// Logged; the user still needs to pick a category.
@@ -19,6 +22,17 @@ enum SMSIngest {
         guard let sms = BankSMSParser.parse(message) else { return .ignored }
         let flow: Flow = sms.kind == .expense ? .expense : .income
         if try isDuplicate(sms, flow: flow, receivedAt: receivedAt, in: context) { return .duplicate }
+        if flow == .expense, let scanned = ScanPay.scannedEntry(amountPaise: sms.amountPaise, near: receivedAt, in: context) {
+            scanned.reference = sms.reference
+            scanned.accountTail = sms.accountTail
+            scanned.rawMessage = message
+            // The bank may name them differently; file that name the same way next time.
+            if let category = scanned.category, let counterparty = sms.counterparty {
+                Tagging.remember(category, for: counterparty, in: context)
+            }
+            try context.save()
+            return .matchedScan(scanned.uuid)
+        }
 
         let entry = LedgerEntry(
             amountPaise: sms.amountPaise,

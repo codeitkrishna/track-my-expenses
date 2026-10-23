@@ -162,6 +162,7 @@ private struct TriageCard: View {
     private var source: String {
         var parts: [String] = [entry.flow == .income ? "In" : "Out"]
         if entry.source == .sms { parts.append("SMS") }
+        if entry.source == .scan { parts.append("Scanned") }
         if let tail = entry.accountTail { parts.append("••\(tail)") }
         return parts.joined(separator: " · ")
     }

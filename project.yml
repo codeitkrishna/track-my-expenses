@@ -34,9 +34,12 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: tmetracker
             CFBundleURLSchemes: [tmetracker]
+        # The UPI apps a scanned code can be paid with (ScanPay).
+        LSApplicationQueriesSchemes: [phonepe, tez, paytmmp, credpay, bhim, upi]
     settings:
       base:
         INFOPLIST_KEY_NSSupportsLiveActivities: YES
+        INFOPLIST_KEY_NSCameraUsageDescription: "TME uses the camera to scan UPI QR codes, so you can pay with any UPI app and have the payment logged."
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).tme
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: TME

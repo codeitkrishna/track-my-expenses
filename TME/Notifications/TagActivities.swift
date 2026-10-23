@@ -23,6 +23,8 @@ enum TagPrompt {
             await TagNotifications.announceFiled(entryID: id, in: context)
         case .duplicate:
             PromptLog.add("The same SMS arrived again; it was already logged.")
+        case .matchedScan(let id):
+            PromptLog.add("\(describe(id, in: context)): the SMS for a payment you scanned; already logged.")
         case .ignored:
             PromptLog.add("An SMS matched your automation but isn't a transaction; ignored.")
         }

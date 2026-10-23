@@ -28,6 +28,9 @@ struct EntryComposer: View {
     enum Mode {
         case add(Flow)
         case edit(LedgerEntry)
+        /// Back from paying a scanned code in a UPI app; `logged` is the
+        /// bank's SMS for it, if that came first.
+        case paid(PendingPayment, logged: LedgerEntry?)
     }
 
     @Environment(\.modelContext) private var context
@@ -90,6 +93,14 @@ struct EntryComposer: View {
             _split = State(initialValue: SplitDraft(entry: entry))
             _goal = State(initialValue: entry.goal)
             _pickedDefaultGoal = State(initialValue: true)
+        case .paid(let payment, let logged):
+            _flow = State(initialValue: .expense)
+            _digits = State(initialValue: (logged?.amountPaise ?? payment.payee.amountPaise).map(Self.typed) ?? "")
+            _category = State(initialValue: logged?.category)
+            _note = State(initialValue: payment.note ?? "")
+            _receiver = State(initialValue: payment.payee.displayName)
+            _date = State(initialValue: logged?.date ?? .now)
+            _split = State(initialValue: SplitDraft())
         }
     }
 
@@ -102,6 +113,10 @@ struct EntryComposer: View {
         if case .edit(let entry) = mode { entry } else { nil }
     }
 
+    private var payment: PendingPayment? {
+        if case .paid(let payment, _) = mode { payment } else { nil }
+    }
+
     private var paise: Int? { EntryWriter.paise(fromTyped: digits) }
 
     private var choices: [LedgerCategory] {
@@ -111,10 +126,21 @@ struct EntryComposer: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                FlowSwitch(flow: $flow)
-                    .padding(.top, 4)
+                if let payment {
+                    PaidHeader(payment: payment)
+                        .padding(.top, 4)
+                } else {
+                    FlowSwitch(flow: $flow)
+                        .padding(.top, 4)
+                }
                 Spacer(minLength: 12)
                 AmountDisplay(digits: digits, flow: flow)
+                if let amountSource {
+                    Text(amountSource)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textTertiary)
+                        .accessibilityIdentifier("amountSource")
+                }
                 receiverField
                     .padding(.top, 2)
                 if focus == .receiver {
@@ -143,7 +169,13 @@ struct EntryComposer: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", systemImage: "xmark") { dismiss() }
+                    if payment != nil {
+                        // Leaves nothing behind: the next time it's a new scan.
+                        Button("Didn't pay") { dismiss() }
+                            .accessibilityIdentifier("didntPay")
+                    } else {
+                        Button("Cancel", systemImage: "xmark") { dismiss() }
+                    }
                 }
                 if editing != nil {
                     ToolbarItem(placement: .destructiveAction) {
@@ -167,12 +199,20 @@ struct EntryComposer: View {
                 if flow == .income { goal = nil }
             }
             .onAppear {
+                // The shop's category from last time, by name.
+                if payment != nil, category == nil {
+                    category = rememberedCategory(for: receiver)
+                }
                 guard !pickedDefaultGoal else { return }
                 pickedDefaultGoal = true
                 if flow == .expense { goal = Goals.spendingGoal(in: context) }
             }
             .onChange(of: focus) {
                 if focus != .note { writingNote = false }
+            }
+            .onDisappear {
+                // Logged or not, it's been asked about.
+                if payment != nil { ScanPay.clear() }
             }
             .sensoryFeedback(.success, trigger: savedCount)
             .sensoryFeedback(.selection, trigger: category?.uuid)
@@ -205,16 +245,16 @@ struct EntryComposer: View {
                 .foregroundStyle(.white)
                 .accessibilityLabel(flow == .expense ? "Paid to" : "Received from")
                 .accessibilityIdentifier("receiverField")
-            if let editing, editing.source == .sms {
+            if let editing, editing.source == .sms || editing.upiID != nil {
                 Button { showingSMS = true } label: {
-                    Image(systemName: "message")
+                    Image(systemName: editing.rawMessage == nil && editing.source != .sms ? "qrcode" : "message")
                         .font(.footnote)
                         .foregroundStyle(Theme.textTertiary)
                         .padding(6)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
-                .accessibilityLabel("The bank's message")
+                .accessibilityLabel(editing.rawMessage == nil && editing.source != .sms ? "How it was paid" : "The bank's message")
                 .accessibilityIdentifier("smsButton")
             }
             if flow == .expense, !openGoals.isEmpty || goal != nil {
@@ -413,43 +453,23 @@ struct EntryComposer: View {
         guard let paise else { return }
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = receiver.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let editing {
-            editing.amountPaise = paise
-            editing.flow = flow
-            editing.note = trimmed
-            editing.date = date
-            // Keep the bank's spelling unless the name was actually changed.
-            if name != (editing.displayMerchant ?? "") {
-                editing.merchant = name.isEmpty ? nil : name
+        switch mode {
+        case .add:
+            insert(paise: paise, note: trimmed, name: name)
+        case .edit(let entry):
+            update(entry, paise: paise, note: trimmed, name: name)
+        case .paid(let payment, _):
+            // The bank's SMS may have come first, even while this was open:
+            // then this is that payment, now with the shop's name.
+            if let logged = ScanPay.smsEntry(for: payment, amountPaise: paise, in: context) {
+                logged.upiID = payment.payee.address
+                if let category, let bankName = logged.merchant {
+                    Tagging.remember(category, for: bankName, in: context)
+                }
+                update(logged, paise: paise, note: trimmed, name: name)
+            } else {
+                insert(paise: paise, note: trimmed, name: name, source: .scan, upiID: payment.payee.address)
             }
-            editing.goal = flow == .expense ? goal : nil
-            let sameCategory = category != nil && category?.uuid == editing.category?.uuid
-            if let category, category.uuid != editing.category?.uuid {
-                Tagging.assign(category, to: editing, in: context)
-            } else if category == nil {
-                editing.category = nil
-            }
-            if !split.isEmpty || !editing.shares.isEmpty {
-                Splits.apply(split, to: editing, in: context)
-            }
-            GoalRules.sync(editing, in: context)
-            // A new amount under the same category can still go over a limit.
-            if sameCategory {
-                try? context.save()
-                LimitAlerts.check(editing, in: context)
-            }
-        } else {
-            let entry = LedgerEntry(amountPaise: paise, flow: flow, date: date, note: trimmed, merchant: name.isEmpty ? nil : name)
-            context.insert(entry)
-            entry.goal = flow == .expense ? goal : nil
-            if let category {
-                // With a receiver this also files their waiting payments, as tagging does elsewhere.
-                Tagging.assign(category, to: entry, in: context)
-            }
-            if !split.isEmpty {
-                Splits.apply(split, to: entry, in: context)
-            }
-            GoalRules.sync(entry, in: context)
         }
         // Next time this receiver shows up, by hand or by SMS, it's filed the same way.
         if !name.isEmpty, let category {
@@ -461,9 +481,80 @@ struct EntryComposer: View {
         dismiss()
     }
 
+    private func update(_ editing: LedgerEntry, paise: Int, note trimmed: String, name: String) {
+        editing.amountPaise = paise
+        editing.flow = flow
+        editing.note = trimmed
+        editing.date = date
+        // Keep the bank's spelling unless the name was actually changed.
+        if name != (editing.displayMerchant ?? "") {
+            editing.merchant = name.isEmpty ? nil : name
+        }
+        editing.goal = flow == .expense ? goal : nil
+        let sameCategory = category != nil && category?.uuid == editing.category?.uuid
+        if let category, category.uuid != editing.category?.uuid {
+            Tagging.assign(category, to: editing, in: context)
+        } else if category == nil {
+            editing.category = nil
+        }
+        if !split.isEmpty || !editing.shares.isEmpty {
+            Splits.apply(split, to: editing, in: context)
+        }
+        GoalRules.sync(editing, in: context)
+        // A new amount under the same category can still go over a limit.
+        if sameCategory {
+            try? context.save()
+            LimitAlerts.check(editing, in: context)
+        }
+    }
+
+    private func insert(paise: Int, note trimmed: String, name: String, source: EntrySource = .manual, upiID: String? = nil) {
+        let entry = LedgerEntry(amountPaise: paise, flow: flow, date: date, note: trimmed, merchant: name.isEmpty ? nil : name, source: source)
+        entry.upiID = upiID
+        context.insert(entry)
+        entry.goal = flow == .expense ? goal : nil
+        if let category {
+            // With a receiver this also files their waiting payments, as tagging does elsewhere.
+            Tagging.assign(category, to: entry, in: context)
+        }
+        if !split.isEmpty {
+            Splits.apply(split, to: entry, in: context)
+        }
+        GoalRules.sync(entry, in: context)
+    }
+
+    /// Where a paid amount came from, under it, while it's unchanged.
+    private var amountSource: String? {
+        guard case .paid(let payment, let logged) = mode else { return nil }
+        if let logged, paise == logged.amountPaise { return "From your bank's SMS" }
+        if let fixed = payment.payee.amountPaise, paise == fixed { return "Set by the shop" }
+        return digits.isEmpty ? "Type what you paid" : nil
+    }
+
     /// 5000000 paise → "50000"; 1050 → "10.50".
     private static func typed(_ paise: Int) -> String {
         paise % 100 == 0 ? "\(paise / 100)" : String(format: "%d.%02d", paise / 100, paise % 100)
+    }
+}
+
+/// "Paid with PhonePe?" over the UPI ID, in place of expense or income.
+private struct PaidHeader: View {
+    let payment: PendingPayment
+
+    var body: some View {
+        VStack(spacing: 5) {
+            Text("Paid with \(payment.appName)?")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+            Text(payment.payee.address)
+                .font(.system(.footnote, design: .monospaced))
+                .foregroundStyle(Theme.textTertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("paidHeader")
     }
 }
 
@@ -617,6 +708,7 @@ private struct SMSDetails: View {
             PanelPage {
                 PanelSection {
                     if let merchant = entry.displayMerchant { PanelValueRow(title: "Merchant", value: merchant) }
+                    if let upiID = entry.upiID { PanelValueRow(title: "UPI ID", value: upiID) }
                     if let tail = entry.accountTail { PanelValueRow(title: "Account", value: "••\(tail)") }
                     if let reference = entry.reference { PanelValueRow(title: "Reference", value: reference) }
                 }
@@ -631,7 +723,7 @@ private struct SMSDetails: View {
                     }
                 }
             }
-            .navigationTitle("From your bank")
+            .navigationTitle(entry.rawMessage == nil && entry.source != .sms ? "Paid by scanning" : "From your bank")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
